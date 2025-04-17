@@ -20,7 +20,7 @@ from answer_evaluation import get_answer_evaluation, save_evaluation_data
 
 
 # Set path to Google Cloud credentials file
-GOOGLE_CREDENTIALS_PATH = "C:\\Users\\dhruv\\Desktop\\IntervuAI\\durable-stack-453203-c6-c007f8e298d9.json"
+GOOGLE_CREDENTIALS_PATH = "C:\\Users\\dhruv\\Desktop\\IntervuAI\\durable-stack-453203-c6-328c6e3be1bb.json"
 
 # Set OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
