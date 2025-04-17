@@ -491,7 +491,9 @@ if st.session_state.questions and st.session_state.setup_stage == "interview":
 # Welcome page/landing screen
 if st.session_state.setup_stage == "welcome_page" and not st.session_state.questions:
     # Use the absolute path for the logo
-    logo_path = r"C:\Users\dhruv\Desktop\IntervuAI\image.png"
+    logo_path = Path(__file__).parent / "image.png"
+    logo_image = Image.open(logo_path)
+    st.image(logo_image, use_column_width=True)
     
     st.markdown("""
     <style>
