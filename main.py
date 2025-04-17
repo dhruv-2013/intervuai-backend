@@ -493,7 +493,7 @@ if st.session_state.setup_stage == "welcome_page" and not st.session_state.quest
     # Use the absolute path for the logo
     logo_path = Path(__file__).parent / "image.png"
     logo_image = Image.open(logo_path)
-    st.image(logo_image, use_column_width=True)
+    
     
     st.markdown("""
     <style>
