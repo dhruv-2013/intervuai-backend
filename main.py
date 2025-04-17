@@ -85,13 +85,15 @@ def load_whisper_model():
 @st.cache_resource
 def get_tts_client():
     try:
-        # Explicitly use credentials file
-        credentials, project = google.auth.load_credentials_from_file(GOOGLE_CREDENTIALS_PATH)
+        # Load credentials from Streamlit secrets
+        service_account_info = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
+        credentials = service_account.Credentials.from_service_account_info(service_account_info)
         client = texttospeech.TextToSpeechClient(credentials=credentials)
         return client
     except Exception as e:
         st.error(f"Error initializing Google Cloud TTS client: {str(e)}")
         return None
+
 
 # Function to generate speech from text using Google Cloud TTS
 def text_to_speech(text):
