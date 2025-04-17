@@ -133,9 +133,8 @@ def autoplay_audio(audio_bytes):
 # Helper function to get the base URL
 def get_base_url():
     """Get the base URL for the current deployment"""
-    # This is a simple way to determine the base URL for local development
-    # For production, you might want to set this via an environment variable
-    return "http://localhost:3000"  # Change this to your deployed frontend URL
+    # Update to use the Vercel-hosted dashboard URL
+    return "https://intervuai-dashboard.vercel.app"  # Production dashboard URL
 
 st.set_page_config(
     page_title="Interview Agent",
