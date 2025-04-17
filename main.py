@@ -12,6 +12,7 @@ from audio_recorder_streamlit import audio_recorder
 from PIL import Image
 import base64
 from io import BytesIO
+from google.oauth2 import service_account
 from google.cloud import texttospeech
 import google.auth
 
@@ -20,7 +21,13 @@ from answer_evaluation import get_answer_evaluation, save_evaluation_data
 
 
 # Set path to Google Cloud credentials file
-GOOGLE_CREDENTIALS_PATH = "C:\\Users\\dhruv\\Desktop\\IntervuAI\\durable-stack-453203-c6-328c6e3be1bb.json"
+try:
+    service_account_info = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
+    credentials = service_account.Credentials.from_service_account_info(service_account_info)
+    tts_client = texttospeech.TextToSpeechClient(credentials=credentials)
+except Exception as e:
+    st.error(f"Error initializing Google Cloud TTS client: {e}")
+    tts_client = None
 
 # Set OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
