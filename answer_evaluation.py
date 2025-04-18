@@ -159,7 +159,7 @@ def save_evaluation_data(evaluations, interviewee_name):
         json.dump(career_profile, f, indent=2)
 
     # ✅ Upload to Firebase Cloud Storage
-    bucket = storage.bucket("interview-agent-53543.firebasestorage.app")
+    bucket = storage.bucket()
     blob = bucket.blob(f"evaluations/{filename}")  # Folder 'evaluations/' in Firebase
     blob.upload_from_filename(str(file_path))      # Upload the local file
     blob.make_public()                             # Make it publicly viewable
