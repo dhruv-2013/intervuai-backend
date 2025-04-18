@@ -242,7 +242,8 @@ def save_evaluation_data(evaluations, interviewee_name):
             
             # ✅ Generate CORS-compliant public URL
       
-            public_url = f"https://firebasestorage.googleapis.com/v0/b/interview-agent-53543.appspot.com/o/evaluations%2F{filename}?alt=media"
+        
+
 
 
             # Clean up temp file
@@ -259,8 +260,14 @@ def save_evaluation_data(evaluations, interviewee_name):
         except Exception as firebase_error:
             st.warning(f"Firebase upload failed: {str(firebase_error)}. Using direct data approach.")
             
-            # Create a Base64 encoded data version for direct embedding
-            # Note: This is only suitable for smaller data sizes
+            # Create a Base64 encoded data version for direct embed
+            from urllib.parse import quote
+
+            firebase_path = f"evaluations/{filename}"
+            encoded_path = quote(firebase_path, safe="")  # encodes slashes too
+
+            public_url = f"https://firebasestorage.googleapis.com/v0/b/{bucket.name}/o/{encoded_path}?alt=media"
+
             try:
                 # Create a minimal version of the data to reduce size
                 compact_data = {
