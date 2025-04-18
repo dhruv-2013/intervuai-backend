@@ -125,19 +125,9 @@ def get_answer_evaluation(question, answer, job_field):
         }
 
 def save_evaluation_data(evaluations, interviewee_name):
-    """
-    Save the evaluation data to a JSON file and upload it to Firebase Storage.
-    If Firebase upload fails, returns the local file path as fallback.
-    
-    Parameters:
-    - evaluations: List of evaluation dictionaries
-    - interviewee_name: Name of the interviewee
-    
-    Returns:
-    - Public URL of the uploaded evaluation JSON file or local file path if upload fails
-    """
+    """Save evaluation data and upload to Firebase"""
     try:
-        # Create data directory if it doesn't exist (optional local save)
+        # Create data directory
         data_dir = Path("C:/Users/dhruv/Desktop/IntervuAI/local-output")
         data_dir.mkdir(exist_ok=True, parents=True)
 
@@ -146,7 +136,7 @@ def save_evaluation_data(evaluations, interviewee_name):
         filename = f"{interviewee_name.lower().replace(' ', '_')}_{timestamp}.json"
         file_path = data_dir / filename
 
-        # Create the full evaluation data package
+        # Create evaluation profile
         career_profile = {
             "interviewee": interviewee_name,
             "timestamp": datetime.now().isoformat(),
@@ -156,38 +146,31 @@ def save_evaluation_data(evaluations, interviewee_name):
             "career_insights": generate_career_insights(evaluations)
         }
 
-        # Save it locally (always do this as a backup)
+        # Save locally
         with open(file_path, "w") as f:
             json.dump(career_profile, f, indent=2)
         
-        print(f"Evaluation data saved locally to: {file_path}")
+        # Import Firebase utilities
+        from firebase_utils import upload_file_to_firebase
         
-        # Try to upload to Firebase if initialized
-        if firebase_admin._apps:
-            try:
-                # Get service account email for debugging
-                if hasattr(firebase_admin._apps[0].credential, 'service_account_email'):
-                    print(f"Using service account: {firebase_admin._apps[0].credential.service_account_email}")
-                
-                # Get bucket reference (without specifying the name again)
-                bucket = storage.bucket()
-                print(f"Uploading to bucket path: evaluations/{filename}")
-                
-                blob = bucket.blob(f"evaluations/{filename}")
-                blob.upload_from_filename(str(file_path))
-                blob.make_public()
-                
-                print(f"Successfully uploaded to Firebase: {blob.public_url}")
-                return blob.public_url
-            except Exception as e:
-                print(f"Firebase upload error: {type(e).__name__}: {str(e)}")
-                return str(file_path)  # Return local path as fallback
-        else:
-            print("Firebase not initialized, returning local file path")
-            return str(file_path)
+        # Try Firebase upload
+        firebase_url = upload_file_to_firebase(file_path, f"evaluations/{filename}")
+        
+        # Return detailed result
+        return {
+            "local_path": str(file_path),
+            "firebase_url": firebase_url,
+            "success": firebase_url is not None
+        }
+        
     except Exception as e:
-        print(f"Error in save_evaluation_data: {type(e).__name__}: {str(e)}")
-        return None
+        print(f"Error in save_evaluation_data: {str(e)}")
+        return {
+            "local_path": None, 
+            "firebase_url": None,
+            "success": False,
+            "error": str(e)
+        }
 
 def calculate_aggregate_scores(evaluations):
     """Calculate aggregate scores across all evaluations"""
