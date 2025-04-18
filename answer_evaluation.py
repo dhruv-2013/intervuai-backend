@@ -8,7 +8,6 @@ import firebase_admin
 from firebase_admin import credentials, storage
 import streamlit as st
 
-# ✅ Fix: Use correct secret name and don't parse it again
 if not firebase_admin._apps:
     firebase_cred_dict = dict(st.secrets["FIREBASE_CREDENTIALS_JSON"])
     cred = credentials.Certificate(firebase_cred_dict)
