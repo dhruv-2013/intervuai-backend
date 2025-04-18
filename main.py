@@ -15,22 +15,31 @@ from io import BytesIO
 from google.oauth2 import service_account
 from google.cloud import texttospeech
 import google.auth
-from urllib.parse import quote
+
 # Import the new answer evaluation module
 from answer_evaluation import get_answer_evaluation, save_evaluation_data, calculate_aggregate_scores, aggregate_skill_assessment, generate_career_insights
 
-
-# Set path to Google Cloud credentials file
+# Initialize Google Cloud Text-to-Speech client
 try:
-    service_account_info = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
-    credentials = service_account.Credentials.from_service_account_info(service_account_info)
-    tts_client = texttospeech.TextToSpeechClient(credentials=credentials)
+    # Load TTS credentials from Streamlit secrets
+    tts_credentials_info = json.loads(st.secrets["GOOGLE_TTS_CREDENTIALS_JSON"])
+    tts_credentials = service_account.Credentials.from_service_account_info(tts_credentials_info)
+    tts_client = texttospeech.TextToSpeechClient(credentials=tts_credentials)
 except Exception as e:
     st.error(f"Error initializing Google Cloud TTS client: {e}")
     tts_client = None
 
+# Initialize Firebase credentials (used for saving evaluation data)
+try:
+    # Load Firebase credentials from Streamlit secrets
+    firebase_credentials_info = json.loads(st.secrets["FIREBASE_CREDENTIALS_JSON"])
+    firebase_credentials = service_account.Credentials.from_service_account_info(firebase_credentials_info)
+    # Note: Firebase client will be initialized when needed in the save_evaluation_data function
+except Exception as e:
+    st.error(f"Error initializing Firebase credentials: {e}")
+    firebase_credentials = None
+
 # Set OpenAI API key
-#openai.api_key = os.getenv("OPENAI_API_KEY")
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # Initialize session state variables
@@ -59,7 +68,7 @@ if "interview_complete" not in st.session_state:
 if "selected_job_field" not in st.session_state:
     st.session_state.selected_job_field = None
 if "setup_stage" not in st.session_state:
-    st.session_state.setup_stage = "welcome_page"  # Changed to welcome_page
+    st.session_state.setup_stage = "welcome_page"
 if "question_spoken" not in st.session_state:
     st.session_state.question_spoken = False
 if "use_voice" not in st.session_state:
@@ -82,19 +91,21 @@ def load_whisper_model():
     compute_type = "float16" if device == "cuda" else "int8"
     return WhisperModel(model_size, device=device, compute_type=compute_type)
 
-# Initialize Google Cloud Text-to-Speech client
+# Get the TTS client with proper caching
 @st.cache_resource
 def get_tts_client():
     try:
-        # Load credentials from Streamlit secrets
-        service_account_info = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
-        credentials = service_account.Credentials.from_service_account_info(service_account_info)
-        client = texttospeech.TextToSpeechClient(credentials=credentials)
-        return client
+        # Use the pre-initialized client
+        if tts_client:
+            return tts_client
+        
+        # If not initialized yet, try to load from secrets
+        tts_credentials_info = json.loads(st.secrets["GOOGLE_TTS_CREDENTIALS_JSON"])
+        tts_credentials = service_account.Credentials.from_service_account_info(tts_credentials_info)
+        return texttospeech.TextToSpeechClient(credentials=tts_credentials)
     except Exception as e:
         st.error(f"Error initializing Google Cloud TTS client: {str(e)}")
         return None
-
 
 # Function to generate speech from text using Google Cloud TTS
 def text_to_speech(text):
@@ -145,6 +156,21 @@ def get_base_url():
     """Get the base URL for the current deployment"""
     # Update to use the Vercel-hosted dashboard URL
     return "https://intervuai-dashboard.vercel.app"  # Production dashboard URL
+
+# Modified save_evaluation_data function to use Firebase credentials
+def get_firebase_credentials():
+    """Get Firebase credentials for use in the save_evaluation_data function"""
+    if firebase_credentials:
+        return firebase_credentials
+    try:
+        # If not loaded yet, try to load from secrets
+        firebase_info = json.loads(st.secrets["FIREBASE_CREDENTIALS_JSON"])
+        return service_account.Credentials.from_service_account_info(firebase_info)
+    except Exception as e:
+        st.error(f"Error loading Firebase credentials: {str(e)}")
+        return None
+
+# Rest of the file remains the same...
 
 st.set_page_config(
     page_title="Interview Agent",
