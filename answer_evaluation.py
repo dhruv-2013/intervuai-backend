@@ -8,15 +8,16 @@ import firebase_admin
 from firebase_admin import credentials, storage
 import streamlit as st
 
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
-# Path to your downloaded Firebase service key JSON
+# ✅ Fix: Use correct secret name and don't parse it again
 if not firebase_admin._apps:
-    firebase_cred_dict = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
+    firebase_cred_dict = dict(st.secrets["FIREBASE_CREDENTIALS_JSON"])
     cred = credentials.Certificate(firebase_cred_dict)
     firebase_admin.initialize_app(cred, {
-        'storageBucket': 'interview-agent-53543.appspot.com'  # ✅ correct Firebase bucket domain
+        'storageBucket': 'interview-agent-53543.appspot.com'
     })
+
+# ✅ Fix: Set OpenAI key from Streamlit secrets
+openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
 
 # Ensure OpenAI API key is set
 #openai.api_key = os.getenv("OPENAI_API_KEY")
