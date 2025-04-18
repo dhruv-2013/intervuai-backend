@@ -141,7 +141,7 @@ def save_evaluation_data(evaluations, interviewee_name):
     - interviewee_name: Name of the interviewee
     
     Returns:
-    - Public URL of the uploaded evaluation JSON file or local path
+    - Public URL of the uploaded evaluation JSON file or direct data object
     """
     try:
         # Generate filename
@@ -158,25 +158,110 @@ def save_evaluation_data(evaluations, interviewee_name):
             "career_insights": generate_career_insights(evaluations)
         }
         
-        # Try using temporary file for cloud environments
-                # — write career_profile to a temp file and upload it —
+        # Create temp file for Firebase upload
         temp_dir = tempfile.gettempdir()
         file_path = Path(temp_dir) / filename
+        
+        # Write career_profile to temp file
         with open(file_path, "w") as f:
-          json.dump(career_profile, f, indent=2)
-
-        bucket = storage.bucket()
-        blob = bucket.blob(f"evaluations/{filename}")
-        blob.upload_from_filename(str(file_path))
-        blob.make_public()
-        public_url = blob.public_url
-
-    # clean up local temp
-        os.remove(file_path)
-        return public_url
+            json.dump(career_profile, f, indent=2)
+        
+        # Try Firebase upload
+        try:
+            # Make sure Firebase is initialized
+            if not firebase_admin._apps:
+                st.warning("Firebase not initialized. Initializing now...")
+                cred = credentials.Certificate(cred_path)
+                firebase_admin.initialize_app(cred, {
+                    "storageBucket": "interview-agent-53543.appspot.com"
+                })
             
+            bucket = storage.bucket()
+            blob = bucket.blob(f"evaluations/{filename}")
+            blob.upload_from_filename(str(file_path))
+            blob.make_public()
+            public_url = blob.public_url
+            
+            # Clean up temp file
+            os.remove(file_path)
+            
+            st.success("✅ Uploaded to Firebase successfully")
+            
+            # Generate dashboard URL with Firebase data link
+            dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={public_url}"
+            st.success(f"🌐 View your Career Dashboard: [Open Dashboard]({dashboard_url})")
+            
+            return public_url
+            
+        except Exception as firebase_error:
+            st.warning(f"Firebase upload failed: {str(firebase_error)}. Using direct data approach.")
+            
+            # Create a Base64 encoded data version for direct embedding
+            # Note: This is only suitable for smaller data sizes
+            try:
+                # Create a minimal version of the data to reduce size
+                compact_data = {
+                    "interviewee": career_profile["interviewee"],
+                    "timestamp": career_profile["timestamp"],
+                    "responses": career_profile["responses"],
+                    "aggregate_scores": career_profile["aggregate_scores"],
+                    "skill_assessment": career_profile["skill_assessment"],
+                    "career_insights": career_profile["career_insights"]
+                }
+                
+                # Encode as base64
+                import base64
+                json_str = json.dumps(compact_data)
+                encoded_bytes = base64.b64encode(json_str.encode('utf-8'))
+                encoded_str = encoded_bytes.decode('utf-8')
+                
+                # Create dashboard URL with encoded data
+                dashboard_url = f"https://intervuai-dashboard.vercel.app/?encoded_data={encoded_str}"
+                
+                # Check URL length - if too long, this won't work
+                if len(dashboard_url) > 4000:  # Most browsers have limits around 4-8K
+                    raise ValueError("URL too long for direct data embedding")
+                
+                st.success("✅ Created direct data link")
+                st.success(f"🌐 View your Career Dashboard: [Open Dashboard]({dashboard_url})")
+                
+                # Also provide a download button for the full data
+                json_str = json.dumps(career_profile, indent=2)
+                b64 = base64.b64encode(json_str.encode()).decode()
+                href = f'<a href="data:application/json;base64,{b64}" download="{filename}">Download Profile Data</a>'
+                st.markdown(href, unsafe_allow_html=True)
+                
+                return dashboard_url
+                
+            except Exception as encoding_error:
+                st.warning(f"Direct data encoding failed: {str(encoding_error)}. Providing download option.")
+                
+                # Provide download button for the data file
+                with open(file_path, "r") as f:
+                    json_data = f.read()
+                
+                json_str = json.dumps(career_profile, indent=2)
+                b64 = base64.b64encode(json_str.encode()).decode()
+                
+                st.markdown("### Your career profile is ready")
+                st.info("To view your dashboard, download the file and upload it on the dashboard page.")
+                
+                href = f'<a href="data:application/json;base64,{b64}" download="{filename}" class="button">Download Career Profile Data</a>'
+                st.markdown(href, unsafe_allow_html=True)
+                
+                dashboard_link = "https://intervuai-dashboard.vercel.app/"
+                st.markdown(f"[Open Dashboard]({dashboard_link}) and upload the file you downloaded")
+                
+                # Clean up temp file
+                os.remove(file_path)
+                
+                return {
+                    "status": "download_only",
+                    "data": career_profile
+                }
+                
     except Exception as e:
-        print(f"Error in save_evaluation_data: {str(e)}")
+        st.error(f"Error in save_evaluation_data: {str(e)}")
         return None
 
 def calculate_aggregate_scores(evaluations):
