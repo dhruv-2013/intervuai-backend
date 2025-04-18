@@ -16,31 +16,48 @@ from google.oauth2 import service_account
 from google.cloud import texttospeech
 import google.auth
 
-# Import the new answer evaluation module
+# Import the answer evaluation module
 from answer_evaluation import get_answer_evaluation, save_evaluation_data, calculate_aggregate_scores, aggregate_skill_assessment, generate_career_insights
 
-# Initialize Google Cloud Text-to-Speech client
+# The page config MUST be the first Streamlit command used in your app
+st.set_page_config(
+    page_title="Interview Agent",
+    page_icon="🎤",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# Initialize OpenAI API key
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+
+# Initialize TTS and Firebase credentials with safer error handling
+tts_client = None
+firebase_credentials = None
+
+# Safely load TTS credentials
 try:
-    # Load TTS credentials from Streamlit secrets
-    tts_credentials_info = json.loads(st.secrets["GOOGLE_TTS_CREDENTIALS_JSON"])
+    # Handle potential JSON formatting issues
+    tts_creds_raw = st.secrets["GOOGLE_TTS_CREDENTIALS_JSON"]
+    tts_credentials_info = json.loads(tts_creds_raw)
     tts_credentials = service_account.Credentials.from_service_account_info(tts_credentials_info)
     tts_client = texttospeech.TextToSpeechClient(credentials=tts_credentials)
+except json.JSONDecodeError as json_err:
+    st.error(f"Error parsing TTS credentials JSON: {json_err}")
+    st.info("Check your secrets.toml file for formatting issues in GOOGLE_TTS_CREDENTIALS_JSON")
 except Exception as e:
-    st.error(f"Error initializing Google Cloud TTS client: {e}")
-    tts_client = None
+    st.error(f"Error initializing Google TTS client: {e}")
 
-# Initialize Firebase credentials (used for saving evaluation data)
+# Safely load Firebase credentials
 try:
-    # Load Firebase credentials from Streamlit secrets
-    firebase_credentials_info = json.loads(st.secrets["FIREBASE_CREDENTIALS_JSON"])
+    # Handle potential JSON formatting issues
+    firebase_creds_raw = st.secrets["FIREBASE_CREDENTIALS_JSON"]
+    firebase_credentials_info = json.loads(firebase_creds_raw)
     firebase_credentials = service_account.Credentials.from_service_account_info(firebase_credentials_info)
-    # Note: Firebase client will be initialized when needed in the save_evaluation_data function
+except json.JSONDecodeError as json_err:
+    st.error(f"Error parsing Firebase credentials JSON: {json_err}")
+    st.info("Check your secrets.toml file for formatting issues in FIREBASE_CREDENTIALS_JSON")
 except Exception as e:
     st.error(f"Error initializing Firebase credentials: {e}")
-    firebase_credentials = None
-
-# Set OpenAI API key
-openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # Initialize session state variables
 if "questions" not in st.session_state:
@@ -77,10 +94,8 @@ if "interviewer_name" not in st.session_state:
     st.session_state.interviewer_name = ""
 if "voice_type" not in st.session_state:
     st.session_state.voice_type = "en-US-Neural2-D"
-# New variable to track interview stage
 if "interview_stage" not in st.session_state:
     st.session_state.interview_stage = "introduction"
-# Add evaluations list to store structured evaluation data
 if "evaluations" not in st.session_state:
     st.session_state.evaluations = []
 
@@ -94,15 +109,17 @@ def load_whisper_model():
 # Get the TTS client with proper caching
 @st.cache_resource
 def get_tts_client():
+    global tts_client
+    if tts_client:
+        return tts_client
+    
     try:
-        # Use the pre-initialized client
-        if tts_client:
-            return tts_client
-        
         # If not initialized yet, try to load from secrets
-        tts_credentials_info = json.loads(st.secrets["GOOGLE_TTS_CREDENTIALS_JSON"])
+        tts_creds_raw = st.secrets["GOOGLE_TTS_CREDENTIALS_JSON"]
+        tts_credentials_info = json.loads(tts_creds_raw)
         tts_credentials = service_account.Credentials.from_service_account_info(tts_credentials_info)
-        return texttospeech.TextToSpeechClient(credentials=tts_credentials)
+        tts_client = texttospeech.TextToSpeechClient(credentials=tts_credentials)
+        return tts_client
     except Exception as e:
         st.error(f"Error initializing Google Cloud TTS client: {str(e)}")
         return None
@@ -157,27 +174,23 @@ def get_base_url():
     # Update to use the Vercel-hosted dashboard URL
     return "https://intervuai-dashboard.vercel.app"  # Production dashboard URL
 
-# Modified save_evaluation_data function to use Firebase credentials
+# Get Firebase credentials for save_evaluation_data function
 def get_firebase_credentials():
-    """Get Firebase credentials for use in the save_evaluation_data function"""
+    global firebase_credentials
     if firebase_credentials:
         return firebase_credentials
+    
     try:
         # If not loaded yet, try to load from secrets
-        firebase_info = json.loads(st.secrets["FIREBASE_CREDENTIALS_JSON"])
-        return service_account.Credentials.from_service_account_info(firebase_info)
+        firebase_creds_raw = st.secrets["FIREBASE_CREDENTIALS_JSON"]
+        firebase_credentials_info = json.loads(firebase_creds_raw)
+        firebase_credentials = service_account.Credentials.from_service_account_info(firebase_credentials_info)
+        return firebase_credentials
     except Exception as e:
         st.error(f"Error loading Firebase credentials: {str(e)}")
         return None
 
-# Rest of the file remains the same...
-
-st.set_page_config(
-    page_title="Interview Agent",
-    page_icon="🎤",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+# The rest of your code follows...
  
 JOB_FIELDS = {
     "Software Engineering": {
