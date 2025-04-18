@@ -17,7 +17,7 @@ from google.cloud import texttospeech
 import google.auth
 from urllib.parse import quote
 # Import the new answer evaluation module
-from answer_evaluation import get_answer_evaluation, save_evaluation_data
+from answer_evaluation import get_answer_evaluation, save_evaluation_data, calculate_aggregate_scores, aggregate_skill_assessment, generate_career_insights
 
 
 # Set path to Google Cloud credentials file
@@ -1158,6 +1158,7 @@ elif st.session_state.setup_stage == "interview_settings" and not st.session_sta
             st.rerun()
 
 # Interview results screen
+# Interview results screen
 elif st.session_state.interview_complete:
     st.title("Interview Practice Results")
     
@@ -1176,30 +1177,74 @@ elif st.session_state.interview_complete:
     if st.session_state.evaluations and len(st.session_state.evaluations) > 0:
         interviewee_name = st.session_state.interviewer_name or "candidate"
         try:
-            file_path = save_evaluation_data(st.session_state.evaluations, interviewee_name)
+            output_path = save_evaluation_data(st.session_state.evaluations, interviewee_name)
             
-            # Get relative path for the dashboard URL
-            encoded_path = quote(file_path.name)
-            dashboard_url = f"https://intervuai-dashboard.vercel.app/?data=https://firebasestorage.googleapis.com/v0/b/interview-agent-53543.appspot.com/o/evaluations%2F{encoded_path}?alt=media"
+            # Check if we got a URL or local path
+            if output_path and isinstance(output_path, str) and output_path.startswith("http"):
+                # Firebase upload succeeded
+                dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={output_path}"
+                
+                st.success("Your interview analysis is ready to view!")
+                st.markdown(f"""
+                ## Career Dashboard
+                
+                View a detailed analysis of your interview performance, including:
+                - Career aptitude assessment
+                - Skills analysis
+                - Career path recommendations
+                - Development opportunities
+                
+                [Open Career Dashboard]({dashboard_url})
+                """)
+            else:
+                # Firebase upload failed, show a message and continue with fallback
+                st.warning("Career dashboard will display limited data due to cloud storage limitations.")
+                if output_path:
+                    st.info(f"Your interview data has been saved locally at: {output_path}")
+                
+                # Create a simplified dashboard experience directly in the app
+                st.subheader("Performance Summary")
+                
+                # Calculate and display aggregate scores
+                agg_scores = calculate_aggregate_scores(st.session_state.evaluations)
+                cols = st.columns(len(agg_scores))
+                for i, (category, score) in enumerate(agg_scores.items()):
+                    with cols[i]:
+                        st.metric(category.title(), f"{score}/10")
+                
+                # Show top skills as a bar chart
+                skill_data = aggregate_skill_assessment(st.session_state.evaluations)
+                if skill_data["demonstrated_skills"]:
+                    st.subheader("Top Skills Demonstrated")
+                    # Convert to a format for Streamlit charting
+                    skill_names = [item["name"] for item in skill_data["demonstrated_skills"][:5]]
+                    skill_counts = [item["count"] for item in skill_data["demonstrated_skills"][:5]]
+                    
+                    # Create a dataframe for the chart
+                    import pandas as pd
+                    chart_data = pd.DataFrame({
+                        "Skill": skill_names,
+                        "Frequency": skill_counts
+                    })
+                    st.bar_chart(chart_data, x="Skill", y="Frequency")
+                
+                # Show career insights
+                career_insights = generate_career_insights(st.session_state.evaluations)
+                if career_insights and career_insights.get("careerPaths"):
+                    st.subheader("Potential Career Paths")
+                    for path in career_insights["careerPaths"][:2]:
+                        st.markdown(f"""
+                        **{path['name']}** - {path['compatibility']}% match
+                        
+                        {path['description']}
+                        
+                        **Key Skills:** {', '.join(path['keySkills'])}
+                        """)
         except Exception as e:
             st.error(f"Error saving evaluation data: {str(e)}")
+            st.info("Continuing with local results display.")
     
-    # Display dashboard link if available
-    if dashboard_url:
-        st.success("Your interview analysis is ready to view!")
-        st.markdown(f"""
-        ## Career Dashboard
-        
-        View a detailed analysis of your interview performance, including:
-        - Career aptitude assessment
-        - Skills analysis
-        - Career path recommendations
-        - Development opportunities
-        
-        [Open Career Dashboard]({dashboard_url})
-        """)
-        
-        st.markdown("---")
+    st.markdown("---")
     
     # Display individual question feedback
     for i, (question_data, answer, feedback) in enumerate(zip(
