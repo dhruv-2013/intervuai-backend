@@ -37,10 +37,10 @@ firebase_credentials = None
 # Safely load TTS credentials
 try:
     # Handle potential JSON formatting issues
-    tts_creds_raw = st.secrets["GOOGLE_TTS_CREDENTIALS_JSON"]
-    tts_credentials_info = json.loads(tts_creds_raw)
-    tts_credentials = service_account.Credentials.from_service_account_info(tts_credentials_info)
+    tts_credentials_info = st.secrets["GOOGLE_TTS_CREDENTIALS_JSON"]
+    tts_credentials = service_account.Credentials.from_service_account_info(dict(tts_credentials_info))
     tts_client = texttospeech.TextToSpeechClient(credentials=tts_credentials)
+
 except json.JSONDecodeError as json_err:
     st.error(f"Error parsing TTS credentials JSON: {json_err}")
     st.info("Check your secrets.toml file for formatting issues in GOOGLE_TTS_CREDENTIALS_JSON")
@@ -50,9 +50,9 @@ except Exception as e:
 # Safely load Firebase credentials
 try:
     # Handle potential JSON formatting issues
-    firebase_creds_raw = st.secrets["FIREBASE_CREDENTIALS_JSON"]
-    firebase_credentials_info = json.loads(firebase_creds_raw)
-    firebase_credentials = service_account.Credentials.from_service_account_info(firebase_credentials_info)
+    firebase_credentials_info = st.secrets["FIREBASE_CREDENTIALS_JSON"]
+    firebase_credentials = service_account.Credentials.from_service_account_info(dict(firebase_credentials_info))
+
 except json.JSONDecodeError as json_err:
     st.error(f"Error parsing Firebase credentials JSON: {json_err}")
     st.info("Check your secrets.toml file for formatting issues in FIREBASE_CREDENTIALS_JSON")
