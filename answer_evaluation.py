@@ -3,11 +3,12 @@ import os
 from datetime import datetime
 from pathlib import Path
 import numpy as np
-from openai import OpenAI
+import openai
 import firebase_admin
 from firebase_admin import credentials, storage
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
 # Path to your downloaded Firebase service key JSON
 cred_path = "C:/Users/dhruv/Desktop/IntervuAI/interview-agent-53543-firebase-adminsdk-fbsvc-5cc8ac6d9c.json"
 
@@ -70,7 +71,7 @@ def get_answer_evaluation(question, answer, job_field):
     """
     
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4-turbo",
             messages=[
                 {"role": "system", "content": "You are an expert interview coach providing structured evaluation data."},
