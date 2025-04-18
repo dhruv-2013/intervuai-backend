@@ -15,7 +15,7 @@ if not firebase_admin._apps:
     firebase_cred_dict = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
     cred = credentials.Certificate(firebase_cred_dict)
     firebase_admin.initialize_app(cred, {
-        'storageBucket': 'interview-agent-53543.appspot.com'  # ✅ correct Firebase bucket domain
+        'storageBucket': 'interview-agent-53543.firebasestorage.app'  # ✅ correct Firebase bucket domain
     })
 
 # Ensure OpenAI API key is set
