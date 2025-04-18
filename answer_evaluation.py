@@ -239,8 +239,10 @@ def save_evaluation_data(evaluations, interviewee_name):
             
             # Make the file publicly accessible
             blob.make_public()
-            public_url = blob.public_url
             
+            # ✅ Generate CORS-compliant public URL
+            public_url = f"https://firebasestorage.googleapis.com/v0/b/{bucket.name}/o/evaluations%2F{filename}?alt=media"
+
             # Clean up temp file
             os.remove(file_path)
             
