@@ -15,7 +15,7 @@ from io import BytesIO
 from google.oauth2 import service_account
 from google.cloud import texttospeech
 import google.auth
-
+from urllib.parse import quote
 # Import the new answer evaluation module
 from answer_evaluation import get_answer_evaluation, save_evaluation_data
 
@@ -1178,10 +1178,8 @@ elif st.session_state.interview_complete:
             file_path = save_evaluation_data(st.session_state.evaluations, interviewee_name)
             
             # Get relative path for the dashboard URL
-            relative_path = str(file_path).replace('\\', '/').replace('./public/', '')
-            
-            # Create dashboard URL
-            dashboard_url = f"{get_base_url()}/dashboard?data={relative_path}"
+            encoded_path = quote(file_path.name)
+            dashboard_url = f"https://intervuai-dashboard.vercel.app/?data=https://firebasestorage.googleapis.com/v0/b/interview-agent-53543.appspot.com/o/evaluations%2F{encoded_path}?alt=media"
         except Exception as e:
             st.error(f"Error saving evaluation data: {str(e)}")
     
