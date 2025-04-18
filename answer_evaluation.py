@@ -174,7 +174,7 @@ def save_evaluation_data(evaluations, interviewee_name):
                 st.warning("Firebase not initialized. Initializing now...")
                 cred = credentials.Certificate(cred_path)
                 firebase_admin.initialize_app(cred, {
-                    "storageBucket": "interview-agent-53543.appspot.com"
+                    "storageBucket": "interview-agent-53543.firebasestorage.app"
                 })
             
             bucket = storage.bucket()
