@@ -174,23 +174,20 @@ def get_answer_evaluation(question, answer, job_field):
             "improved_answer": "Unable to generate improved answer due to error."
         }
 
-# Modify the save_evaluation_data function to use direct encoding by default
-# Replace the entire function with this version
-
 def save_evaluation_data(evaluations, interviewee_name):
     """
-    Save the evaluation data using Base64 encoding method for immediate compatibility.
-    Falls back to file download if needed.
+    Save the evaluation data to a JSON file and upload it to Firebase Storage.
+    Falls back to local storage if Firebase is not available.
     
     Parameters:
     - evaluations: List of evaluation dictionaries
     - interviewee_name: Name of the interviewee
     
     Returns:
-    - Dashboard URL with encoded data
+    - Public URL of the uploaded evaluation JSON file or direct data object
     """
     try:
-        # Generate filename (for downloads if needed)
+        # Generate filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{interviewee_name.lower().replace(' ', '_')}_{timestamp}.json"
         
@@ -204,83 +201,63 @@ def save_evaluation_data(evaluations, interviewee_name):
             "career_insights": generate_career_insights(evaluations)
         }
         
-        # Use Base64 encoding for direct URL approach (no Firebase needed)
+        # Create temp file for Firebase upload
+        temp_dir = tempfile.gettempdir()
+        file_path = Path(temp_dir) / filename
+        
+        # Write career_profile to temp file
+        with open(file_path, "w") as f:
+            json.dump(career_profile, f, indent=2)
+        
+        # Try Firebase upload
         try:
-            # Create a compact version of the data to reduce URL size
-            compact_data = {
-                "interviewee": career_profile["interviewee"],
-                "timestamp": career_profile["timestamp"],
-                "responses": career_profile["responses"],
-                "aggregate_scores": career_profile["aggregate_scores"],
-                "skill_assessment": career_profile["skill_assessment"],
-                "career_insights": career_profile["career_insights"]
-            }
-            
-            # Encode as base64
-            import base64
-            json_str = json.dumps(compact_data)
-            encoded_bytes = base64.b64encode(json_str.encode('utf-8'))
-            encoded_str = encoded_bytes.decode('utf-8')
-            
-            # Create dashboard URL with encoded data
-            dashboard_url = f"https://intervuai-dashboard.vercel.app/?encoded_data={encoded_str}"
-            
-            # Check URL length - if too long, this won't work
-            if len(dashboard_url) > 4000:  # Most browsers have limits around 4-8K
-                raise ValueError("URL too long for direct data embedding")
-            
-            st.success("✅ Created direct data link")
-            st.success(f"🌐 View your Career Dashboard: [Open Dashboard]({dashboard_url})")
-            
-            # Also provide a download button for the full data as backup
-            json_str = json.dumps(career_profile, indent=2)
-            b64 = base64.b64encode(json_str.encode()).decode()
-            href = f'<a href="data:application/json;base64,{b64}" download="{filename}">Download Profile Data (Backup)</a>'
-            st.markdown(href, unsafe_allow_html=True)
-            
-            return dashboard_url
+            # Make sure Firebase is initialized
+            if not firebase_admin._apps:
+                st.warning("Firebase not initialized. Initializing now...")
+                cred = credentials.Certificate(cred_path)
+                firebase_admin.initialize_app(cred, {
+                    "storageBucket": "interview-agent-53543.firebasestorage.app"
+                })
                 
-        except Exception as encoding_error:
-            st.warning(f"Direct data encoding failed: {str(encoding_error)}. Providing download option.")
+                # Configure CORS immediately after initialization
+                configure_firebase_cors()
             
-            # Create temp file for the download
-            temp_dir = tempfile.gettempdir()
-            file_path = Path(temp_dir) / filename
+            bucket = storage.bucket()
+            blob = bucket.blob(f"evaluations/{filename}")
+            blob.upload_from_filename(str(file_path))
             
-            # Write career_profile to temp file
-            with open(file_path, "w") as f:
-                json.dump(career_profile, f, indent=2)
+            # Add content type metadata
+            blob.content_type = "application/json"
             
-            # Provide download button for the data file
-            with open(file_path, "r") as f:
-                json_data = f.read()
+            # Add CORS headers in the metadata
+            metadata = {
+                "Cache-Control": "public, max-age=3600",
+                "Content-Disposition": f"inline; filename={filename}"
+            }
+            blob.metadata = metadata
+            blob.patch()
             
-            json_str = json.dumps(career_profile, indent=2)
-            b64 = base64.b64encode(json_str.encode()).decode()
-            
-            st.markdown("### Your career profile is ready")
-            st.info("To view your dashboard, download the file and upload it on the dashboard page.")
-            
-            href = f'<a href="data:application/json;base64,{b64}" download="{filename}" class="button">Download Career Profile Data</a>'
-            st.markdown(href, unsafe_allow_html=True)
-            
-            dashboard_link = "https://intervuai-dashboard.vercel.app/"
-            st.markdown(f"[Open Dashboard]({dashboard_link}) and upload the file you downloaded")
+            # Make the file publicly accessible
+            blob.make_public()
+            public_url = blob.public_url
             
             # Clean up temp file
             os.remove(file_path)
             
-            return {
-                "status": "download_only",
-                "data": career_profile
-            }
-                
-    except Exception as e:
-        st.error(f"Error in save_evaluation_data: {str(e)}")
-        return None
+            st.success("✅ Uploaded to Firebase successfully")
+            
+            # Generate dashboard URL with Firebase data link
+            dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={public_url}"
+            st.success(f"🌐 View your Career Dashboard: [Open Dashboard]({dashboard_url})")
+            
+            return public_url
+            
+        except Exception as firebase_error:
+            st.warning(f"Firebase upload failed: {str(firebase_error)}. Using direct data approach.")
+            
             # Create a Base64 encoded data version for direct embedding
             # Note: This is only suitable for smaller data sizes
-        try:
+            try:
                 # Create a minimal version of the data to reduce size
                 compact_data = {
                     "interviewee": career_profile["interviewee"],
@@ -315,7 +292,7 @@ def save_evaluation_data(evaluations, interviewee_name):
                 
                 return dashboard_url
                 
-        except Exception as encoding_error:
+            except Exception as encoding_error:
                 st.warning(f"Direct data encoding failed: {str(encoding_error)}. Providing download option.")
                 
                 # Provide download button for the data file
