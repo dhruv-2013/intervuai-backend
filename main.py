@@ -12,19 +12,45 @@ from audio_recorder_streamlit import audio_recorder
 from PIL import Image
 import base64
 from io import BytesIO
+from google.oauth2 import service_account
 from google.cloud import texttospeech
 import google.auth
 
-# Import the new answer evaluation module
-from answer_evaluation import get_answer_evaluation, save_evaluation_data
+# Import the answer evaluation module
+from answer_evaluation import get_answer_evaluation, save_evaluation_data, calculate_aggregate_scores, aggregate_skill_assessment, generate_career_insights
 
+# The page config MUST be the first Streamlit command used in your app
+st.set_page_config(
+    page_title="Interview Agent",
+    page_icon="🎤",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# Set path to Google Cloud credentials file
-GOOGLE_CREDENTIALS_PATH = "C:\\Users\\dhruv\\Desktop\\IntervuAI\\durable-stack-453203-c6-c007f8e298d9.json"
+# Initialize OpenAI API key
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# Set OpenAI API key
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Initialize TTS and Firebase credentials with safer error handling
+tts_client = None
+firebase_credentials = None
 
+# Safely load TTS credentials
+try:
+    # Parse the JSON credentials properly
+    tts_credentials_info = json.loads(st.secrets["GOOGLE_TTS_CREDENTIALS_JSON"])
+    tts_credentials = service_account.Credentials.from_service_account_info(tts_credentials_info)
+    tts_client = texttospeech.TextToSpeechClient(credentials=tts_credentials)
+except Exception as e:
+    st.error(f"Error initializing Google TTS client: {e}")
+
+# Safely load Firebase credentials
+try:
+    # Parse the JSON credentials properly
+    firebase_credentials_info = json.loads(st.secrets["FIREBASE_CREDENTIALS_JSON"])
+    firebase_credentials = service_account.Credentials.from_service_account_info(firebase_credentials_info)
+except Exception as e:
+    st.error(f"Error initializing Firebase credentials: {e}")
+    
 # Initialize session state variables
 if "questions" not in st.session_state:
     st.session_state.questions = []
@@ -51,7 +77,7 @@ if "interview_complete" not in st.session_state:
 if "selected_job_field" not in st.session_state:
     st.session_state.selected_job_field = None
 if "setup_stage" not in st.session_state:
-    st.session_state.setup_stage = "welcome_page"  # Changed to welcome_page
+    st.session_state.setup_stage = "welcome_page"
 if "question_spoken" not in st.session_state:
     st.session_state.question_spoken = False
 if "use_voice" not in st.session_state:
@@ -60,10 +86,8 @@ if "interviewer_name" not in st.session_state:
     st.session_state.interviewer_name = ""
 if "voice_type" not in st.session_state:
     st.session_state.voice_type = "en-US-Neural2-D"
-# New variable to track interview stage
 if "interview_stage" not in st.session_state:
     st.session_state.interview_stage = "introduction"
-# Add evaluations list to store structured evaluation data
 if "evaluations" not in st.session_state:
     st.session_state.evaluations = []
 
@@ -74,14 +98,20 @@ def load_whisper_model():
     compute_type = "float16" if device == "cuda" else "int8"
     return WhisperModel(model_size, device=device, compute_type=compute_type)
 
-# Initialize Google Cloud Text-to-Speech client
+# Get the TTS client with proper caching
 @st.cache_resource
 def get_tts_client():
+    global tts_client
+    if tts_client:
+        return tts_client
+    
     try:
-        # Explicitly use credentials file
-        credentials, project = google.auth.load_credentials_from_file(GOOGLE_CREDENTIALS_PATH)
-        client = texttospeech.TextToSpeechClient(credentials=credentials)
-        return client
+        # If not initialized yet, try to load from secrets
+        tts_creds_raw = st.secrets["GOOGLE_TTS_CREDENTIALS_JSON"]
+        tts_credentials_info = json.loads(tts_creds_raw)
+        tts_credentials = service_account.Credentials.from_service_account_info(tts_credentials_info)
+        tts_client = texttospeech.TextToSpeechClient(credentials=tts_credentials)
+        return tts_client
     except Exception as e:
         st.error(f"Error initializing Google Cloud TTS client: {str(e)}")
         return None
@@ -133,16 +163,26 @@ def autoplay_audio(audio_bytes):
 # Helper function to get the base URL
 def get_base_url():
     """Get the base URL for the current deployment"""
-    # This is a simple way to determine the base URL for local development
-    # For production, you might want to set this via an environment variable
-    return "http://localhost:3000"  # Change this to your deployed frontend URL
+    # Update to use the Vercel-hosted dashboard URL
+    return "https://intervuai-dashboard.vercel.app"  # Production dashboard URL
 
-st.set_page_config(
-    page_title="Interview Agent",
-    page_icon="🎤",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+# Get Firebase credentials for save_evaluation_data function
+def get_firebase_credentials():
+    global firebase_credentials
+    if firebase_credentials:
+        return firebase_credentials
+    
+    try:
+        # If not loaded yet, try to load from secrets
+        firebase_creds_raw = st.secrets["FIREBASE_CREDENTIALS_JSON"]
+        firebase_credentials_info = json.loads(firebase_creds_raw)
+        firebase_credentials = service_account.Credentials.from_service_account_info(firebase_credentials_info)
+        return firebase_credentials
+    except Exception as e:
+        st.error(f"Error loading Firebase credentials: {str(e)}")
+        return None
+
+# The rest of your code follows...
  
 JOB_FIELDS = {
     "Software Engineering": {
@@ -492,7 +532,9 @@ if st.session_state.questions and st.session_state.setup_stage == "interview":
 # Welcome page/landing screen
 if st.session_state.setup_stage == "welcome_page" and not st.session_state.questions:
     # Use the absolute path for the logo
-    logo_path = r"C:\Users\dhruv\Desktop\IntervuAI\image.png"
+    logo_path = Path(__file__).parent / "image.png"
+    logo_image = Image.open(logo_path)
+    
     
     st.markdown("""
     <style>
@@ -1147,6 +1189,7 @@ elif st.session_state.setup_stage == "interview_settings" and not st.session_sta
             st.rerun()
 
 # Interview results screen
+# Interview results screen
 elif st.session_state.interview_complete:
     st.title("Interview Practice Results")
     
@@ -1165,32 +1208,74 @@ elif st.session_state.interview_complete:
     if st.session_state.evaluations and len(st.session_state.evaluations) > 0:
         interviewee_name = st.session_state.interviewer_name or "candidate"
         try:
-            file_path = save_evaluation_data(st.session_state.evaluations, interviewee_name)
+            output_path = save_evaluation_data(st.session_state.evaluations, interviewee_name)
             
-            # Get relative path for the dashboard URL
-            relative_path = str(file_path).replace('\\', '/').replace('./public/', '')
-            
-            # Create dashboard URL
-            dashboard_url = f"{get_base_url()}/dashboard?data={relative_path}"
+            # Check if we got a URL or local path
+            if output_path and isinstance(output_path, str) and output_path.startswith("http"):
+                # Firebase upload succeeded
+                dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={output_path}"
+                
+                st.success("Your interview analysis is ready to view!")
+                st.markdown(f"""
+                ## Career Dashboard
+                
+                View a detailed analysis of your interview performance, including:
+                - Career aptitude assessment
+                - Skills analysis
+                - Career path recommendations
+                - Development opportunities
+                
+                [Open Career Dashboard]({dashboard_url})
+                """)
+            else:
+                # Firebase upload failed, show a message and continue with fallback
+                st.warning("Career dashboard will display limited data due to cloud storage limitations.")
+                if output_path:
+                    st.info(f"Your interview data has been saved locally at: {output_path}")
+                
+                # Create a simplified dashboard experience directly in the app
+                st.subheader("Performance Summary")
+                
+                # Calculate and display aggregate scores
+                agg_scores = calculate_aggregate_scores(st.session_state.evaluations)
+                cols = st.columns(len(agg_scores))
+                for i, (category, score) in enumerate(agg_scores.items()):
+                    with cols[i]:
+                        st.metric(category.title(), f"{score}/10")
+                
+                # Show top skills as a bar chart
+                skill_data = aggregate_skill_assessment(st.session_state.evaluations)
+                if skill_data["demonstrated_skills"]:
+                    st.subheader("Top Skills Demonstrated")
+                    # Convert to a format for Streamlit charting
+                    skill_names = [item["name"] for item in skill_data["demonstrated_skills"][:5]]
+                    skill_counts = [item["count"] for item in skill_data["demonstrated_skills"][:5]]
+                    
+                    # Create a dataframe for the chart
+                    import pandas as pd
+                    chart_data = pd.DataFrame({
+                        "Skill": skill_names,
+                        "Frequency": skill_counts
+                    })
+                    st.bar_chart(chart_data, x="Skill", y="Frequency")
+                
+                # Show career insights
+                career_insights = generate_career_insights(st.session_state.evaluations)
+                if career_insights and career_insights.get("careerPaths"):
+                    st.subheader("Potential Career Paths")
+                    for path in career_insights["careerPaths"][:2]:
+                        st.markdown(f"""
+                        **{path['name']}** - {path['compatibility']}% match
+                        
+                        {path['description']}
+                        
+                        **Key Skills:** {', '.join(path['keySkills'])}
+                        """)
         except Exception as e:
             st.error(f"Error saving evaluation data: {str(e)}")
+            st.info("Continuing with local results display.")
     
-    # Display dashboard link if available
-    if dashboard_url:
-        st.success("Your interview analysis is ready to view!")
-        st.markdown(f"""
-        ## Career Dashboard
-        
-        View a detailed analysis of your interview performance, including:
-        - Career aptitude assessment
-        - Skills analysis
-        - Career path recommendations
-        - Development opportunities
-        
-        [Open Career Dashboard]({dashboard_url})
-        """)
-        
-        st.markdown("---")
+    st.markdown("---")
     
     # Display individual question feedback
     for i, (question_data, answer, feedback) in enumerate(zip(
