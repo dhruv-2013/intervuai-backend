@@ -1174,61 +1174,47 @@ elif st.session_state.interview_complete:
     
     # Create a file for the dashboard if we have evaluations
     dashboard_url = None
-if st.session_state.evaluations and len(st.session_state.evaluations) > 0:
-    interviewee_name = st.session_state.interviewer_name or "candidate"
-    try:
-        # Get output paths (now returns a dictionary)
-        result = save_evaluation_data(st.session_state.evaluations, interviewee_name)
-        
-        # Check if Firebase upload succeeded
-        if result.get("success") and result.get("firebase_url"):
-            # Firebase upload succeeded
-            firebase_url = result["firebase_url"]
-            dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={firebase_url}"
+    if st.session_state.evaluations and len(st.session_state.evaluations) > 0:
+        interviewee_name = st.session_state.interviewer_name or "candidate"
+        try:
+            output_path = save_evaluation_data(st.session_state.evaluations, interviewee_name)
             
-            st.success("Your interview analysis is ready to view!")
-            st.markdown(f"""
-            ## Career Dashboard
-            
-            View a detailed analysis of your interview performance, including:
-            - Career aptitude assessment
-            - Skills analysis
-            - Career path recommendations
-            - Development opportunities
-            
-            [Open Career Dashboard]({dashboard_url})
-            """)
-        else:
-            # Firebase upload failed, show a message and continue with fallback
-            st.warning("Career dashboard will display limited data due to cloud storage limitations.")
-            if result.get("local_path"):
-                st.info(f"Your interview data has been saved locally at: {result['local_path']}")
+            # Check if we got a URL or local path
+            if output_path and isinstance(output_path, str) and output_path.startswith("http"):
+                # Firebase upload succeeded
+                dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={output_path}"
                 
-                # Provide manual upload instructions
-                st.markdown("""
-                ### Manual Dashboard Access
-                To view your full dashboard:
-                1. Upload the JSON file above to any public file hosting service (Google Drive, Dropbox, etc.)
-                2. Make sure the file is publicly accessible and get the share link
-                3. Access the dashboard at: https://intervuai-dashboard.vercel.app/?data=YOUR_FILE_URL
+                st.success("Your interview analysis is ready to view!")
+                st.markdown(f"""
+                ## Career Dashboard
+                
+                View a detailed analysis of your interview performance, including:
+                - Career aptitude assessment
+                - Skills analysis
+                - Career path recommendations
+                - Development opportunities
+                
+                [Open Career Dashboard]({dashboard_url})
                 """)
-    except Exception as e:
-        st.error(f"Error saving evaluation data: {str(e)}")
-        st.info("Continuing with local results display.")
+            else:
+                # Firebase upload failed, show a message and continue with fallback
+                st.warning("Career dashboard will display limited data due to cloud storage limitations.")
+                if output_path:
+                    st.info(f"Your interview data has been saved locally at: {output_path}")
                 
                 # Create a simplified dashboard experience directly in the app
-        st.subheader("Performance Summary")
+                st.subheader("Performance Summary")
                 
                 # Calculate and display aggregate scores
-        agg_scores = calculate_aggregate_scores(st.session_state.evaluations)
-        cols = st.columns(len(agg_scores))
-        for i, (category, score) in enumerate(agg_scores.items()):
+                agg_scores = calculate_aggregate_scores(st.session_state.evaluations)
+                cols = st.columns(len(agg_scores))
+                for i, (category, score) in enumerate(agg_scores.items()):
                     with cols[i]:
                         st.metric(category.title(), f"{score}/10")
                 
                 # Show top skills as a bar chart
-        skill_data = aggregate_skill_assessment(st.session_state.evaluations)
-        if skill_data["demonstrated_skills"]:
+                skill_data = aggregate_skill_assessment(st.session_state.evaluations)
+                if skill_data["demonstrated_skills"]:
                     st.subheader("Top Skills Demonstrated")
                     # Convert to a format for Streamlit charting
                     skill_names = [item["name"] for item in skill_data["demonstrated_skills"][:5]]
@@ -1243,8 +1229,8 @@ if st.session_state.evaluations and len(st.session_state.evaluations) > 0:
                     st.bar_chart(chart_data, x="Skill", y="Frequency")
                 
                 # Show career insights
-        career_insights = generate_career_insights(st.session_state.evaluations)
-        if career_insights and career_insights.get("careerPaths"):
+                career_insights = generate_career_insights(st.session_state.evaluations)
+                if career_insights and career_insights.get("careerPaths"):
                     st.subheader("Potential Career Paths")
                     for path in career_insights["careerPaths"][:2]:
                         st.markdown(f"""
@@ -1254,7 +1240,7 @@ if st.session_state.evaluations and len(st.session_state.evaluations) > 0:
                         
                         **Key Skills:** {', '.join(path['keySkills'])}
                         """)
-    except Exception as e:
+        except Exception as e:
             st.error(f"Error saving evaluation data: {str(e)}")
             st.info("Continuing with local results display.")
     
