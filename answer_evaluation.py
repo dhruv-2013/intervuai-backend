@@ -6,17 +6,16 @@ import numpy as np
 import openai
 import firebase_admin
 from firebase_admin import credentials, storage
+import streamlit as st
 
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
 # Path to your downloaded Firebase service key JSON
-cred_path = "C:/Users/dhruv/Desktop/IntervuAI/interview-agent-53543-firebase-adminsdk-fbsvc-5cc8ac6d9c.json"
-
-
 if not firebase_admin._apps:
-    cred = credentials.Certificate(cred_path)
+    firebase_cred_dict = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
+    cred = credentials.Certificate(firebase_cred_dict)
     firebase_admin.initialize_app(cred, {
-    'storageBucket': 'interview-agent-53543.firebasestorage.app'
+        'storageBucket': 'interview-agent-53543.appspot.com'  # ✅ correct Firebase bucket domain
     })
 
 # Ensure OpenAI API key is set
@@ -79,11 +78,12 @@ def get_answer_evaluation(question, answer, job_field):
             ],
             max_tokens=1000,
             temperature=0.7,
-            response_format={"type": "json_object"}
+            
         )
         
         # Parse the JSON response
-        evaluation_data = json.loads(response.choices[0].message.content)
+        evaluation_data = json.loads(response["choices"][0]["message"]["content"])
+        #evaluation_data = json.loads(response.choices[0].message.content)
         
         # Add metadata
         evaluation_data["question"] = question
