@@ -9,11 +9,17 @@ from firebase_admin import credentials, storage
 import streamlit as st
 
 if not firebase_admin._apps:
-    firebase_cred_dict = dict(st.secrets["FIREBASE_CREDENTIALS_JSON"])
-    cred = credentials.Certificate(firebase_cred_dict)
-    firebase_admin.initialize_app(cred, {
-        'storageBucket': 'interview-agent-53543.appspot.com'
-    })
+    try:
+        # Parse the JSON string from secrets
+        firebase_cred_dict = json.loads(st.secrets["FIREBASE_CREDENTIALS"])
+        
+        # Initialize with the credential
+        cred = credentials.Certificate(firebase_cred_dict)
+        firebase_admin.initialize_app(cred, {
+            'storageBucket': 'interview-agent-53543.appspot.com'
+        })
+    except Exception as e:
+        print(f"Error initializing Firebase: {str(e)}")
 
 # ✅ Fix: Set OpenAI key from Streamlit secrets
 openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
