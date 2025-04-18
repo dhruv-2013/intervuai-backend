@@ -64,7 +64,7 @@ if not firebase_admin._apps:
     try:
         cred = credentials.Certificate(cred_path)
         firebase_admin.initialize_app(cred, {
-            "storageBucket": "interview-agent-53543.firebasestorage.app"
+            "storageBucket": "interview-agent-53543.appspot.com"
         })
         st.write("✅ Firebase initialized from temp file")
         
@@ -216,7 +216,7 @@ def save_evaluation_data(evaluations, interviewee_name):
                 st.warning("Firebase not initialized. Initializing now...")
                 cred = credentials.Certificate(cred_path)
                 firebase_admin.initialize_app(cred, {
-                    "storageBucket": "interview-agent-53543.firebasestorage.app"
+                    "storageBucket": "interview-agent-53543.appspot.com"
                 })
                 
                 # Configure CORS immediately after initialization
@@ -241,7 +241,9 @@ def save_evaluation_data(evaluations, interviewee_name):
             blob.make_public()
             
             # ✅ Generate CORS-compliant public URL
-            public_url = f"https://firebasestorage.googleapis.com/v0/b/{bucket.name}/o/evaluations%2F{filename}?alt=media"
+      
+            public_url = f"https://firebasestorage.googleapis.com/v0/b/interview-agent-53543.appspot.com/o/evaluations%2F{filename}?alt=media"
+
 
             # Clean up temp file
             os.remove(file_path)
