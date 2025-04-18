@@ -41,7 +41,7 @@ def configure_firebase_cors():
                 ]
             }
         ]
-        
+        bucket.patch()  # Apply the new rules explicitly
         # Apply the update to the bucket
         bucket.update()
         st.success("✅ CORS configuration updated for Firebase bucket")
