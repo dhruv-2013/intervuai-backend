@@ -131,7 +131,23 @@ def get_answer_evaluation(question, answer, job_field):
             "skill_levels": {"Technical knowledge": 70, "Communication": 70},
             "improved_answer": "Unable to generate improved answer due to error."
         }
-
+def configure_firebase_cors():
+    try:
+        # Set CORS for the bucket to allow the dashboard to access the files
+        bucket = storage.bucket()
+        bucket.cors = [
+            {
+                "origin": ["https://intervuai-dashboard.vercel.app", "http://localhost:3000"],
+                "method": ["GET"],
+                "maxAgeSeconds": 3600,
+                "responseHeader": ["Content-Type", "Access-Control-Allow-Origin"]
+            }
+        ]
+        bucket.update()
+        st.success("✅ CORS configuration updated for Firebase bucket")
+    except Exception as e:
+        st.error(f"Failed to update CORS: {e}")
+        
 def save_evaluation_data(evaluations, interviewee_name):
     """
     Save the evaluation data to a JSON file and upload it to Firebase Storage.
