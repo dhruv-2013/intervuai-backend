@@ -64,7 +64,7 @@ if not firebase_admin._apps:
     try:
         cred = credentials.Certificate(cred_path)
         firebase_admin.initialize_app(cred, {
-            "storageBucket": "interview-agent-53543.appspot.com"
+            "storageBucket": "interview-agent-53543.firebasestorage.app"
         })
         st.write("✅ Firebase initialized from temp file")
         
@@ -175,7 +175,6 @@ def get_answer_evaluation(question, answer, job_field):
         }
 
 def save_evaluation_data(evaluations, interviewee_name):
-    public_url = None
     """
     Save the evaluation data to a JSON file and upload it to Firebase Storage.
     Falls back to local storage if Firebase is not available.
@@ -217,7 +216,7 @@ def save_evaluation_data(evaluations, interviewee_name):
                 st.warning("Firebase not initialized. Initializing now...")
                 cred = credentials.Certificate(cred_path)
                 firebase_admin.initialize_app(cred, {
-                    "storageBucket": "interview-agent-53543.appspot.com"
+                    "storageBucket": "interview-agent-53543.firebasestorage.app"
                 })
                 
                 # Configure CORS immediately after initialization
@@ -240,13 +239,8 @@ def save_evaluation_data(evaluations, interviewee_name):
             
             # Make the file publicly accessible
             blob.make_public()
+            public_url = blob.public_url
             
-            # ✅ Generate CORS-compliant public URL
-      
-        
-
-
-
             # Clean up temp file
             os.remove(file_path)
             
@@ -261,15 +255,8 @@ def save_evaluation_data(evaluations, interviewee_name):
         except Exception as firebase_error:
             st.warning(f"Firebase upload failed: {str(firebase_error)}. Using direct data approach.")
             
-            # Create a Base64 encoded data version for direct embed
-            from urllib.parse import quote
-
-            firebase_path = f"evaluations/{filename}"
-            encoded_path = quote(firebase_path, safe="")
-
-            public_url = f"https://firebasestorage.googleapis.com/v0/b/{bucket.name}/o/{encoded_path}?alt=media"
-
-
+            # Create a Base64 encoded data version for direct embedding
+            # Note: This is only suitable for smaller data sizes
             try:
                 # Create a minimal version of the data to reduce size
                 compact_data = {
@@ -296,8 +283,6 @@ def save_evaluation_data(evaluations, interviewee_name):
                 
                 st.success("✅ Created direct data link")
                 st.success(f"🌐 View your Career Dashboard: [Open Dashboard]({dashboard_url})")
-                return public_url  # ✅ Add this line to exit early
-                
                 
                 # Also provide a download button for the full data
                 json_str = json.dumps(career_profile, indent=2)
