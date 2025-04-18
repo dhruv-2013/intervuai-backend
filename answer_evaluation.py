@@ -16,7 +16,7 @@ if not firebase_admin._apps:
         firebase_cred_dict = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
         cred = credentials.Certificate(firebase_cred_dict)
         firebase_admin.initialize_app(cred, {
-            'storageBucket': 'interview-agent-53543.appspot.com'
+            'storageBucket': 'durable-stack-453203-c6.appspot.com'
         })
         print(f"Firebase initialized with service account: {cred.service_account_email}")
     except Exception as e:
