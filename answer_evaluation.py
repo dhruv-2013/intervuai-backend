@@ -5,25 +5,32 @@ from pathlib import Path
 import numpy as np
 import openai
 import streamlit as st
-
+import tempfile
+import firebase_admin
+from firebase_admin import credentials, storage
 # Initialize Firebase with better error handling
-try:
-    import firebase_admin
-    from firebase_admin import credentials, storage
-    
-    # Check if Firebase is already initialized
-    if not firebase_admin._apps:
-        try:
-            firebase_cred_dict = json.loads(st.secrets["FIREBASE_CREDENTIALS_JSON"])
-            cred = credentials.Certificate(firebase_cred_dict)
-            firebase_admin.initialize_app(cred, {
-                'storageBucket': 'interview-agent-53543.appspot.com'
-            })
-            print("Firebase initialized successfully")
-        except Exception as e:
-            print(f"Error initializing Firebase: {str(e)}")
-except ImportError:
-    print("Firebase admin SDK not available")
+# Load your JSON credential from secrets
+# ——— FIREBASE ADMIN INIT ———
+fb_creds_dict = json.loads(st.secrets["FIREBASE_CREDENTIALS_JSON"])
+
+# Dump to a real temp file so Firebase‑Admin can read it
+tf = tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False)
+tf.write(json.dumps(fb_creds_dict))
+tf.flush()
+cred_path = tf.name
+
+# Initialize Firebase Admin exactly once
+if not firebase_admin._apps:
+    try:
+        cred = credentials.Certificate(cred_path)
+        firebase_admin.initialize_app(cred, {
+            "storageBucket": "interview-agent-53543.appspot.com"
+        })
+        st.write("✅ Firebase initialized from temp file")
+    except Exception as e:
+        st.error(f"Firebase init failed: {e}")
+        raise
+# —————————————————————————
 
 # Set OpenAI API key from Streamlit secrets
 openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
@@ -152,31 +159,21 @@ def save_evaluation_data(evaluations, interviewee_name):
         }
         
         # Try using temporary file for cloud environments
-        import tempfile
-        
-        # Create a temporary file
+                # — write career_profile to a temp file and upload it —
         temp_dir = tempfile.gettempdir()
         file_path = Path(temp_dir) / filename
-        
-        # Save locally first
         with open(file_path, "w") as f:
-            json.dump(career_profile, f, indent=2)
-        
-        # Upload to Firebase if available
-        try:
-            from firebase_admin import storage
-            bucket = storage.bucket()
-            blob = bucket.blob(f"evaluations/{filename}")
-            blob.upload_from_filename(str(file_path))
-            blob.make_public()
-            # Clean up temp file
-            os.remove(file_path)
-            return blob.public_url
-        
-        except Exception as e:
-            print(f"Firebase upload error: {str(e)}")
-            # Firebase failed, return the local path
-            return str(file_path)
+          json.dump(career_profile, f, indent=2)
+
+        bucket = storage.bucket()
+        blob = bucket.blob(f"evaluations/{filename}")
+        blob.upload_from_filename(str(file_path))
+        blob.make_public()
+        public_url = blob.public_url
+
+    # clean up local temp
+        os.remove(file_path)
+        return public_url
             
     except Exception as e:
         print(f"Error in save_evaluation_data: {str(e)}")
