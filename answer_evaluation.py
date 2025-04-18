@@ -175,6 +175,7 @@ def get_answer_evaluation(question, answer, job_field):
         }
 
 def save_evaluation_data(evaluations, interviewee_name):
+    public_url = None
     """
     Save the evaluation data to a JSON file and upload it to Firebase Storage.
     Falls back to local storage if Firebase is not available.
@@ -264,9 +265,10 @@ def save_evaluation_data(evaluations, interviewee_name):
             from urllib.parse import quote
 
             firebase_path = f"evaluations/{filename}"
-            encoded_path = quote(firebase_path, safe="")  # encodes slashes too
+            encoded_path = quote(firebase_path, safe="")
 
             public_url = f"https://firebasestorage.googleapis.com/v0/b/{bucket.name}/o/{encoded_path}?alt=media"
+
 
             try:
                 # Create a minimal version of the data to reduce size
@@ -294,6 +296,8 @@ def save_evaluation_data(evaluations, interviewee_name):
                 
                 st.success("✅ Created direct data link")
                 st.success(f"🌐 View your Career Dashboard: [Open Dashboard]({dashboard_url})")
+                return public_url  # ✅ Add this line to exit early
+                
                 
                 # Also provide a download button for the full data
                 json_str = json.dumps(career_profile, indent=2)
