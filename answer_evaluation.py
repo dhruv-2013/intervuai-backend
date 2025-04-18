@@ -12,14 +12,20 @@ import streamlit as st
 openai.api_key = os.getenv("OPENAI_API_KEY")
 # Path to your downloaded Firebase service key JSON
 if not firebase_admin._apps:
-    firebase_cred_dict = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
-    cred = credentials.Certificate(firebase_cred_dict)
-    firebase_admin.initialize_app(cred, {
-        'storageBucket': 'interview-agent-53543.firebasestorage.app'  # ✅ correct Firebase bucket domain
-    })
+    try:
+        firebase_cred_dict = json.loads(st.secrets["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
+        cred = credentials.Certificate(firebase_cred_dict)
+        firebase_admin.initialize_app(cred, {
+            'storageBucket': 'interview-agent-53543.firebasestorage.app'
+        })
+        print(f"Firebase initialized with service account: {cred.service_account_email}")
+    except Exception as e:
+        print(f"Error initializing Firebase: {str(e)}")
+        # Continue without Firebase to allow local functionality
 
 # Ensure OpenAI API key is set
-#openai.api_key = os.getenv("OPENAI_API_KEY")
+if not openai.api_key:
+    openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
 
 # The enhanced answer evaluation function
 def get_answer_evaluation(question, answer, job_field):
@@ -83,7 +89,6 @@ def get_answer_evaluation(question, answer, job_field):
         
         # Parse the JSON response
         evaluation_data = json.loads(response["choices"][0]["message"]["content"])
-        #evaluation_data = json.loads(response.choices[0].message.content)
         
         # Add metadata
         evaluation_data["question"] = question
@@ -122,51 +127,67 @@ def get_answer_evaluation(question, answer, job_field):
 def save_evaluation_data(evaluations, interviewee_name):
     """
     Save the evaluation data to a JSON file and upload it to Firebase Storage.
+    If Firebase upload fails, returns the local file path as fallback.
     
     Parameters:
     - evaluations: List of evaluation dictionaries
     - interviewee_name: Name of the interviewee
     
     Returns:
-    - Public URL of the uploaded evaluation JSON file
+    - Public URL of the uploaded evaluation JSON file or local file path if upload fails
     """
-    from datetime import datetime
-    import json
-    from pathlib import Path
-    from firebase_admin import storage
+    try:
+        # Create data directory if it doesn't exist (optional local save)
+        data_dir = Path("C:/Users/dhruv/Desktop/IntervuAI/local-output")
+        data_dir.mkdir(exist_ok=True, parents=True)
 
-    # Create data directory if it doesn't exist (optional local save)
-    data_dir = Path("C:/Users/dhruv/Desktop/IntervuAI/local-output")
-    data_dir.mkdir(exist_ok=True, parents=True)
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{interviewee_name.lower().replace(' ', '_')}_{timestamp}.json"
+        file_path = data_dir / filename
 
-    # Generate filename
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{interviewee_name.lower().replace(' ', '_')}_{timestamp}.json"
-    file_path = data_dir / filename
+        # Create the full evaluation data package
+        career_profile = {
+            "interviewee": interviewee_name,
+            "timestamp": datetime.now().isoformat(),
+            "responses": evaluations,
+            "aggregate_scores": calculate_aggregate_scores(evaluations),
+            "skill_assessment": aggregate_skill_assessment(evaluations),
+            "career_insights": generate_career_insights(evaluations)
+        }
 
-    # Create the full evaluation data package
-    career_profile = {
-        "interviewee": interviewee_name,
-        "timestamp": datetime.now().isoformat(),
-        "responses": evaluations,
-        "aggregate_scores": calculate_aggregate_scores(evaluations),
-        "skill_assessment": aggregate_skill_assessment(evaluations),
-        "career_insights": generate_career_insights(evaluations)
-    }
-
-    # Save it locally (optional for backup)
-    with open(file_path, "w") as f:
-        json.dump(career_profile, f, indent=2)
-
-    # ✅ Upload to Firebase Cloud Storage
-    bucket = storage.bucket()
-    blob = bucket.blob(f"evaluations/{filename}")  # Folder 'evaluations/' in Firebase
-    blob.upload_from_filename(str(file_path))      # Upload the local file
-    blob.make_public()                             # Make it publicly viewable
-
-    # ✅ Return the public URL
-    return blob.public_url
-
+        # Save it locally (always do this as a backup)
+        with open(file_path, "w") as f:
+            json.dump(career_profile, f, indent=2)
+        
+        print(f"Evaluation data saved locally to: {file_path}")
+        
+        # Try to upload to Firebase if initialized
+        if firebase_admin._apps:
+            try:
+                # Get service account email for debugging
+                if hasattr(firebase_admin._apps[0].credential, 'service_account_email'):
+                    print(f"Using service account: {firebase_admin._apps[0].credential.service_account_email}")
+                
+                # Get bucket reference (without specifying the name again)
+                bucket = storage.bucket()
+                print(f"Uploading to bucket path: evaluations/{filename}")
+                
+                blob = bucket.blob(f"evaluations/{filename}")
+                blob.upload_from_filename(str(file_path))
+                blob.make_public()
+                
+                print(f"Successfully uploaded to Firebase: {blob.public_url}")
+                return blob.public_url
+            except Exception as e:
+                print(f"Firebase upload error: {type(e).__name__}: {str(e)}")
+                return str(file_path)  # Return local path as fallback
+        else:
+            print("Firebase not initialized, returning local file path")
+            return str(file_path)
+    except Exception as e:
+        print(f"Error in save_evaluation_data: {type(e).__name__}: {str(e)}")
+        return None
 
 def calculate_aggregate_scores(evaluations):
     """Calculate aggregate scores across all evaluations"""
@@ -374,11 +395,13 @@ if __name__ == "__main__":
     print(json.dumps(result, indent=2))
     
     # ⬇️ Upload to Firebase
-    public_url = save_evaluation_data([result], "Dhruv Gulwani")
-    print(f"\n✅ Uploaded to Firebase:\n{public_url}")
+    output_path = save_evaluation_data([result], "Dhruv Gulwani")
+    print(f"\n✅ Output saved to: {output_path}")
     
-    # ✅ Generate the React dashboard URL
-    dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={public_url}"
-    print(f"\n🌐 View your Career Dashboard:\n{dashboard_url}")
-
-
+    # Check if we got a URL or local path
+    if output_path and isinstance(output_path, str) and output_path.startswith("http"):
+        # Generate the React dashboard URL
+        dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={output_path}"
+        print(f"\n🌐 View your Career Dashboard:\n{dashboard_url}")
+    else:
+        print("\n⚠️ Firebase upload failed. Data saved locally only.")
