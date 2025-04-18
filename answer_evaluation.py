@@ -4,22 +4,29 @@ from datetime import datetime
 from pathlib import Path
 import numpy as np
 import openai
-import firebase_admin
-from firebase_admin import credentials, storage
 import streamlit as st
 
-if not firebase_admin._apps:
-    firebase_cred_dict = json.loads(st.secrets["FIREBASE_CREDENTIALS_JSON"])
-    cred = credentials.Certificate(firebase_cred_dict)
-    firebase_admin.initialize_app(cred, {
-        'storageBucket': 'interview-agent-53543.appspot.com'
-    })
+# Initialize Firebase with better error handling
+try:
+    import firebase_admin
+    from firebase_admin import credentials, storage
+    
+    # Check if Firebase is already initialized
+    if not firebase_admin._apps:
+        try:
+            firebase_cred_dict = json.loads(st.secrets["FIREBASE_CREDENTIALS_JSON"])
+            cred = credentials.Certificate(firebase_cred_dict)
+            firebase_admin.initialize_app(cred, {
+                'storageBucket': 'interview-agent-53543.appspot.com'
+            })
+            print("Firebase initialized successfully")
+        except Exception as e:
+            print(f"Error initializing Firebase: {str(e)}")
+except ImportError:
+    print("Firebase admin SDK not available")
 
-# ✅ Fix: Set OpenAI key from Streamlit secrets
+# Set OpenAI API key from Streamlit secrets
 openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
-
-# Ensure OpenAI API key is set
-#openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # The enhanced answer evaluation function
 def get_answer_evaluation(question, answer, job_field):
@@ -78,12 +85,10 @@ def get_answer_evaluation(question, answer, job_field):
             ],
             max_tokens=1000,
             temperature=0.7,
-            
         )
         
         # Parse the JSON response
         evaluation_data = json.loads(response["choices"][0]["message"]["content"])
-        #evaluation_data = json.loads(response.choices[0].message.content)
         
         # Add metadata
         evaluation_data["question"] = question
@@ -122,51 +127,60 @@ def get_answer_evaluation(question, answer, job_field):
 def save_evaluation_data(evaluations, interviewee_name):
     """
     Save the evaluation data to a JSON file and upload it to Firebase Storage.
+    Falls back to local storage if Firebase is not available.
     
     Parameters:
     - evaluations: List of evaluation dictionaries
     - interviewee_name: Name of the interviewee
     
     Returns:
-    - Public URL of the uploaded evaluation JSON file
+    - Public URL of the uploaded evaluation JSON file or local path
     """
-    from datetime import datetime
-    import json
-    from pathlib import Path
-    from firebase_admin import storage
-
-    # Create data directory if it doesn't exist (optional local save)
-    data_dir = Path("C:/Users/dhruv/Desktop/IntervuAI/local-output")
-    data_dir.mkdir(exist_ok=True, parents=True)
-
-    # Generate filename
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{interviewee_name.lower().replace(' ', '_')}_{timestamp}.json"
-    file_path = data_dir / filename
-
-    # Create the full evaluation data package
-    career_profile = {
-        "interviewee": interviewee_name,
-        "timestamp": datetime.now().isoformat(),
-        "responses": evaluations,
-        "aggregate_scores": calculate_aggregate_scores(evaluations),
-        "skill_assessment": aggregate_skill_assessment(evaluations),
-        "career_insights": generate_career_insights(evaluations)
-    }
-
-    # Save it locally (optional for backup)
-    with open(file_path, "w") as f:
-        json.dump(career_profile, f, indent=2)
-
-    # ✅ Upload to Firebase Cloud Storage
-    bucket = storage.bucket()
-    blob = bucket.blob(f"evaluations/{filename}")  # Folder 'evaluations/' in Firebase
-    blob.upload_from_filename(str(file_path))      # Upload the local file
-    blob.make_public()                             # Make it publicly viewable
-
-    # ✅ Return the public URL
-    return blob.public_url
-
+    try:
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{interviewee_name.lower().replace(' ', '_')}_{timestamp}.json"
+        
+        # Create the full evaluation data package
+        career_profile = {
+            "interviewee": interviewee_name,
+            "timestamp": datetime.now().isoformat(),
+            "responses": evaluations,
+            "aggregate_scores": calculate_aggregate_scores(evaluations),
+            "skill_assessment": aggregate_skill_assessment(evaluations),
+            "career_insights": generate_career_insights(evaluations)
+        }
+        
+        # Try using temporary file for cloud environments
+        import tempfile
+        
+        # Create a temporary file
+        temp_dir = tempfile.gettempdir()
+        file_path = Path(temp_dir) / filename
+        
+        # Save locally first
+        with open(file_path, "w") as f:
+            json.dump(career_profile, f, indent=2)
+        
+        # Upload to Firebase if available
+        try:
+            from firebase_admin import storage
+            bucket = storage.bucket()
+            blob = bucket.blob(f"evaluations/{filename}")
+            blob.upload_from_filename(str(file_path))
+            blob.make_public()
+            # Clean up temp file
+            os.remove(file_path)
+            return blob.public_url
+        
+        except Exception as e:
+            print(f"Firebase upload error: {str(e)}")
+            # Firebase failed, return the local path
+            return str(file_path)
+            
+    except Exception as e:
+        print(f"Error in save_evaluation_data: {str(e)}")
+        return None
 
 def calculate_aggregate_scores(evaluations):
     """Calculate aggregate scores across all evaluations"""
@@ -309,8 +323,6 @@ def generate_career_insights(evaluations):
         ]
     
     # Create a work environment preference profile based on answer analysis
-    # Since we don't have advanced NLP here, we'll simulate this with random variations
-    # In a real implementation, you'd analyze the language patterns in answers
     seed = hash(str(evaluations)) % 100
     np.random.seed(seed)
     
@@ -373,12 +385,10 @@ if __name__ == "__main__":
     result = get_answer_evaluation(sample_question, sample_answer, job_field)
     print(json.dumps(result, indent=2))
     
-    # ⬇️ Upload to Firebase
-    public_url = save_evaluation_data([result], "Dhruv Gulwani")
+    # Upload to Firebase
+    public_url = save_evaluation_data([result], "Test User")
     print(f"\n✅ Uploaded to Firebase:\n{public_url}")
     
-    # ✅ Generate the React dashboard URL
+    # Generate the React dashboard URL
     dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={public_url}"
     print(f"\n🌐 View your Career Dashboard:\n{dashboard_url}")
-
-
