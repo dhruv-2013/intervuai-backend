@@ -30,7 +30,8 @@ except Exception as e:
     tts_client = None
 
 # Set OpenAI API key
-openai.api_key = os.getenv("OPENAI_API_KEY")
+#openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # Initialize session state variables
 if "questions" not in st.session_state:
