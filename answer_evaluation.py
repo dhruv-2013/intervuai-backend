@@ -7,7 +7,7 @@ from openai import OpenAI
 import firebase_admin
 from firebase_admin import credentials, storage
 
-client = OpenAI(api_key="REMOVED_SECRET")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # Path to your downloaded Firebase service key JSON
 cred_path = "C:/Users/dhruv/Desktop/IntervuAI/interview-agent-53543-firebase-adminsdk-fbsvc-5cc8ac6d9c.json"
 
