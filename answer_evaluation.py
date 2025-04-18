@@ -4,36 +4,9 @@ from datetime import datetime
 from pathlib import Path
 import numpy as np
 import openai
-import streamlit as st
-import tempfile
-import firebase_admin
-from firebase_admin import credentials, storage
-# Initialize Firebase with better error handling
-# Load your JSON credential from secrets
-# ——— FIREBASE ADMIN INIT ———
-fb_creds_dict = json.loads(st.secrets["FIREBASE_CREDENTIALS_JSON"])
 
-# Dump to a real temp file so Firebase‑Admin can read it
-tf = tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False)
-tf.write(json.dumps(fb_creds_dict))
-tf.flush()
-cred_path = tf.name
-
-# Initialize Firebase Admin exactly once
-if not firebase_admin._apps:
-    try:
-        cred = credentials.Certificate(cred_path)
-        firebase_admin.initialize_app(cred, {
-            "storageBucket": "interview-agent-53543.appspot.com"
-        })
-        st.write("✅ Firebase initialized from temp file")
-    except Exception as e:
-        st.error(f"Firebase init failed: {e}")
-        raise
-# —————————————————————————
-
-# Set OpenAI API key from Streamlit secrets
-openai.api_key = st.secrets.get("OPENAI_API_KEY", "")
+# Ensure OpenAI API key is set
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # The enhanced answer evaluation function
 def get_answer_evaluation(question, answer, job_field):
@@ -84,18 +57,19 @@ def get_answer_evaluation(question, answer, job_field):
     """
     
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4-turbo",
+        response = openai.chat.completions.create(
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are an expert interview coach providing structured evaluation data."},
                 {"role": "user", "content": prompt}
             ],
             max_tokens=1000,
             temperature=0.7,
+            response_format={"type": "json_object"}
         )
         
         # Parse the JSON response
-        evaluation_data = json.loads(response["choices"][0]["message"]["content"])
+        evaluation_data = json.loads(response.choices[0].message.content)
         
         # Add metadata
         evaluation_data["question"] = question
@@ -133,136 +107,40 @@ def get_answer_evaluation(question, answer, job_field):
 
 def save_evaluation_data(evaluations, interviewee_name):
     """
-    Save the evaluation data to a JSON file and upload it to Firebase Storage.
-    Falls back to local storage if Firebase is not available.
+    Save the evaluation data to a JSON file that can be loaded by the React frontend
     
     Parameters:
     - evaluations: List of evaluation dictionaries
     - interviewee_name: Name of the interviewee
     
     Returns:
-    - Public URL of the uploaded evaluation JSON file or direct data object
+    - Path to the saved file
     """
-    try:
-        # Generate filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{interviewee_name.lower().replace(' ', '_')}_{timestamp}.json"
-        
-        # Create the full evaluation data package
-        career_profile = {
-            "interviewee": interviewee_name,
-            "timestamp": datetime.now().isoformat(),
-            "responses": evaluations,
-            "aggregate_scores": calculate_aggregate_scores(evaluations),
-            "skill_assessment": aggregate_skill_assessment(evaluations),
-            "career_insights": generate_career_insights(evaluations)
-        }
-        
-        # Create temp file for Firebase upload
-        temp_dir = tempfile.gettempdir()
-        file_path = Path(temp_dir) / filename
-        
-        # Write career_profile to temp file
-        with open(file_path, "w") as f:
-            json.dump(career_profile, f, indent=2)
-        
-        # Try Firebase upload
-        try:
-            # Make sure Firebase is initialized
-            if not firebase_admin._apps:
-                st.warning("Firebase not initialized. Initializing now...")
-                cred = credentials.Certificate(cred_path)
-                firebase_admin.initialize_app(cred, {
-                    "storageBucket": "interview-agent-53543.appspot.com"
-                })
-            
-            bucket = storage.bucket()
-            blob = bucket.blob(f"evaluations/{filename}")
-            blob.upload_from_filename(str(file_path))
-            blob.make_public()
-            public_url = blob.public_url
-            
-            # Clean up temp file
-            os.remove(file_path)
-            
-            st.success("✅ Uploaded to Firebase successfully")
-            
-            # Generate dashboard URL with Firebase data link
-            dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={public_url}"
-            st.success(f"🌐 View your Career Dashboard: [Open Dashboard]({dashboard_url})")
-            
-            return public_url
-            
-        except Exception as firebase_error:
-            st.warning(f"Firebase upload failed: {str(firebase_error)}. Using direct data approach.")
-            
-            # Create a Base64 encoded data version for direct embedding
-            # Note: This is only suitable for smaller data sizes
-            try:
-                # Create a minimal version of the data to reduce size
-                compact_data = {
-                    "interviewee": career_profile["interviewee"],
-                    "timestamp": career_profile["timestamp"],
-                    "responses": career_profile["responses"],
-                    "aggregate_scores": career_profile["aggregate_scores"],
-                    "skill_assessment": career_profile["skill_assessment"],
-                    "career_insights": career_profile["career_insights"]
-                }
-                
-                # Encode as base64
-                import base64
-                json_str = json.dumps(compact_data)
-                encoded_bytes = base64.b64encode(json_str.encode('utf-8'))
-                encoded_str = encoded_bytes.decode('utf-8')
-                
-                # Create dashboard URL with encoded data
-                dashboard_url = f"https://intervuai-dashboard.vercel.app/?encoded_data={encoded_str}"
-                
-                # Check URL length - if too long, this won't work
-                if len(dashboard_url) > 4000:  # Most browsers have limits around 4-8K
-                    raise ValueError("URL too long for direct data embedding")
-                
-                st.success("✅ Created direct data link")
-                st.success(f"🌐 View your Career Dashboard: [Open Dashboard]({dashboard_url})")
-                
-                # Also provide a download button for the full data
-                json_str = json.dumps(career_profile, indent=2)
-                b64 = base64.b64encode(json_str.encode()).decode()
-                href = f'<a href="data:application/json;base64,{b64}" download="{filename}">Download Profile Data</a>'
-                st.markdown(href, unsafe_allow_html=True)
-                
-                return dashboard_url
-                
-            except Exception as encoding_error:
-                st.warning(f"Direct data encoding failed: {str(encoding_error)}. Providing download option.")
-                
-                # Provide download button for the data file
-                with open(file_path, "r") as f:
-                    json_data = f.read()
-                
-                json_str = json.dumps(career_profile, indent=2)
-                b64 = base64.b64encode(json_str.encode()).decode()
-                
-                st.markdown("### Your career profile is ready")
-                st.info("To view your dashboard, download the file and upload it on the dashboard page.")
-                
-                href = f'<a href="data:application/json;base64,{b64}" download="{filename}" class="button">Download Career Profile Data</a>'
-                st.markdown(href, unsafe_allow_html=True)
-                
-                dashboard_link = "https://intervuai-dashboard.vercel.app/"
-                st.markdown(f"[Open Dashboard]({dashboard_link}) and upload the file you downloaded")
-                
-                # Clean up temp file
-                os.remove(file_path)
-                
-                return {
-                    "status": "download_only",
-                    "data": career_profile
-                }
-                
-    except Exception as e:
-        st.error(f"Error in save_evaluation_data: {str(e)}")
-        return None
+    # Create data directory if it doesn't exist
+    data_dir = Path("C:/Users/dhruv/Desktop/IntervuAI/Feed/career-dashboard/public/data")
+    data_dir.mkdir(exist_ok=True, parents=True)
+    
+    # Create a filename with interviewee name and timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{interviewee_name.lower().replace(' ', '_')}_{timestamp}.json"
+    
+    # Aggregate the evaluations into a career profile format
+    career_profile = {
+        "interviewee": interviewee_name,
+        "timestamp": datetime.now().isoformat(),
+        "responses": evaluations,
+        "aggregate_scores": calculate_aggregate_scores(evaluations),
+        "skill_assessment": aggregate_skill_assessment(evaluations),
+        "career_insights": generate_career_insights(evaluations)
+    }
+    
+    # Save to file
+    file_path = data_dir / filename
+    with open(file_path, "w") as f:
+        json.dump(career_profile, f, indent=2)
+    
+    # Return just the filename without the full path for the URL
+    return f"data/{filename}"
 
 def calculate_aggregate_scores(evaluations):
     """Calculate aggregate scores across all evaluations"""
@@ -405,6 +283,8 @@ def generate_career_insights(evaluations):
         ]
     
     # Create a work environment preference profile based on answer analysis
+    # Since we don't have advanced NLP here, we'll simulate this with random variations
+    # In a real implementation, you'd analyze the language patterns in answers
     seed = hash(str(evaluations)) % 100
     np.random.seed(seed)
     
@@ -460,17 +340,10 @@ def generate_career_insights(evaluations):
 
 # For testing purposes
 if __name__ == "__main__":
+    # Test with a sample question and answer
     sample_question = "Tell me about a time you had to work under pressure to meet a deadline."
     sample_answer = "Last year, our team needed to deliver a critical update within three weeks. I organized everyone into focused workstreams, created daily check-ins, and personally handled the complex technical tasks. We prioritized key features, automated testing, and maintained clear stakeholder communication. We delivered on time with all core requirements met."
     job_field = "Software Engineering"
     
     result = get_answer_evaluation(sample_question, sample_answer, job_field)
     print(json.dumps(result, indent=2))
-    
-    # Upload to Firebase
-    public_url = save_evaluation_data([result], "Test User")
-    print(f"\n✅ Uploaded to Firebase:\n{public_url}")
-    
-    # Generate the React dashboard URL
-    dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={public_url}"
-    print(f"\n🌐 View your Career Dashboard:\n{dashboard_url}")
