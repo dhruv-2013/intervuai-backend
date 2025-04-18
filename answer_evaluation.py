@@ -20,11 +20,12 @@ tf.flush()
 cred_path = tf.name
 
 # Initialize Firebase Admin exactly once
+# Initialize Firebase Admin exactly once
 if not firebase_admin._apps:
     try:
         cred = credentials.Certificate(cred_path)
         firebase_admin.initialize_app(cred, {
-            "storageBucket": "interview-agent-53543.appspot.com"
+            "storageBucket": "interview-agent-53543.firebasestorage.app"  # Updated bucket name
         })
         st.write("✅ Firebase initialized from temp file")
     except Exception as e:
