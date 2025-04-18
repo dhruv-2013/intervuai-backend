@@ -3,10 +3,23 @@ import os
 from datetime import datetime
 from pathlib import Path
 import numpy as np
-import openai
+from openai import OpenAI
+import firebase_admin
+from firebase_admin import credentials, storage
+
+client = OpenAI(api_key="REMOVED_SECRET")
+# Path to your downloaded Firebase service key JSON
+cred_path = "C:/Users/dhruv/Desktop/IntervuAI/interview-agent-53543-firebase-adminsdk-fbsvc-5cc8ac6d9c.json"
+
+
+if not firebase_admin._apps:
+    cred = credentials.Certificate(cred_path)
+    firebase_admin.initialize_app(cred, {
+    'storageBucket': 'interview-agent-53543.firebasestorage.app'
+    })
 
 # Ensure OpenAI API key is set
-openai.api_key = os.getenv("OPENAI_API_KEY")
+#openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # The enhanced answer evaluation function
 def get_answer_evaluation(question, answer, job_field):
@@ -57,8 +70,8 @@ def get_answer_evaluation(question, answer, job_field):
     """
     
     try:
-        response = openai.chat.completions.create(
-            model="gpt-4",
+        response = client.chat.completions.create(
+            model="gpt-4-turbo",
             messages=[
                 {"role": "system", "content": "You are an expert interview coach providing structured evaluation data."},
                 {"role": "user", "content": prompt}
@@ -107,25 +120,30 @@ def get_answer_evaluation(question, answer, job_field):
 
 def save_evaluation_data(evaluations, interviewee_name):
     """
-    Save the evaluation data to a JSON file that can be loaded by the React frontend
+    Save the evaluation data to a JSON file and upload it to Firebase Storage.
     
     Parameters:
     - evaluations: List of evaluation dictionaries
     - interviewee_name: Name of the interviewee
     
     Returns:
-    - Path to the saved file
+    - Public URL of the uploaded evaluation JSON file
     """
-    # Create data directory if it doesn't exist
-    data_dir = Path("C:/Users/dhruv/Desktop/IntervuAI/intervuai-dashboard/public/data")
+    from datetime import datetime
+    import json
+    from pathlib import Path
+    from firebase_admin import storage
 
+    # Create data directory if it doesn't exist (optional local save)
+    data_dir = Path("C:/Users/dhruv/Desktop/IntervuAI/local-output")
     data_dir.mkdir(exist_ok=True, parents=True)
-    
-    # Create a filename with interviewee name and timestamp
+
+    # Generate filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{interviewee_name.lower().replace(' ', '_')}_{timestamp}.json"
-    
-    # Aggregate the evaluations into a career profile format
+    file_path = data_dir / filename
+
+    # Create the full evaluation data package
     career_profile = {
         "interviewee": interviewee_name,
         "timestamp": datetime.now().isoformat(),
@@ -134,14 +152,20 @@ def save_evaluation_data(evaluations, interviewee_name):
         "skill_assessment": aggregate_skill_assessment(evaluations),
         "career_insights": generate_career_insights(evaluations)
     }
-    
-    # Save to file
-    file_path = data_dir / filename
+
+    # Save it locally (optional for backup)
     with open(file_path, "w") as f:
         json.dump(career_profile, f, indent=2)
-    
-    # Return just the filename without the full path for the URL
-    return f"data/{filename}"
+
+    # ✅ Upload to Firebase Cloud Storage
+    bucket = storage.bucket()
+    blob = bucket.blob(f"evaluations/{filename}")  # Folder 'evaluations/' in Firebase
+    blob.upload_from_filename(str(file_path))      # Upload the local file
+    blob.make_public()                             # Make it publicly viewable
+
+    # ✅ Return the public URL
+    return blob.public_url
+
 
 def calculate_aggregate_scores(evaluations):
     """Calculate aggregate scores across all evaluations"""
@@ -341,10 +365,19 @@ def generate_career_insights(evaluations):
 
 # For testing purposes
 if __name__ == "__main__":
-    # Test with a sample question and answer
     sample_question = "Tell me about a time you had to work under pressure to meet a deadline."
     sample_answer = "Last year, our team needed to deliver a critical update within three weeks. I organized everyone into focused workstreams, created daily check-ins, and personally handled the complex technical tasks. We prioritized key features, automated testing, and maintained clear stakeholder communication. We delivered on time with all core requirements met."
     job_field = "Software Engineering"
     
     result = get_answer_evaluation(sample_question, sample_answer, job_field)
     print(json.dumps(result, indent=2))
+    
+    # ⬇️ Upload to Firebase
+    public_url = save_evaluation_data([result], "Dhruv Gulwani")
+    print(f"\n✅ Uploaded to Firebase:\n{public_url}")
+    
+    # ✅ Generate the React dashboard URL
+    dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={public_url}"
+    print(f"\n🌐 View your Career Dashboard:\n{dashboard_url}")
+
+
