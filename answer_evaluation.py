@@ -8,8 +8,48 @@ import streamlit as st
 import tempfile
 import firebase_admin
 from firebase_admin import credentials, storage
-# Initialize Firebase with better error handling
-# Load your JSON credential from secrets
+
+# Define configure_firebase_cors function BEFORE it's called
+def configure_firebase_cors():
+    """Configure CORS settings for Firebase Storage to allow the dashboard to fetch data"""
+    try:
+        # Get the storage bucket
+        bucket = storage.bucket()
+        
+        # Set comprehensive CORS rules
+        bucket.cors = [
+            {
+                # Include both the dashboard URL and localhost for testing
+                "origin": [
+                    "https://intervuai-dashboard.vercel.app", 
+                    "http://localhost:3000",
+                    # It's sometimes helpful to include the www variant and http version
+                    "http://intervuai-dashboard.vercel.app",
+                    "https://www.intervuai-dashboard.vercel.app"
+                ],
+                # Allow more HTTP methods - GET is required for fetching the JSON
+                "method": ["GET", "HEAD", "OPTIONS"],
+                # 3600 seconds = 1 hour cache time
+                "maxAgeSeconds": 3600,
+                # Include all necessary headers for CORS requests
+                "responseHeader": [
+                    "Content-Type", 
+                    "Access-Control-Allow-Origin", 
+                    "Access-Control-Allow-Methods",
+                    "Access-Control-Allow-Headers",
+                    "Content-Length"
+                ]
+            }
+        ]
+        
+        # Apply the update to the bucket
+        bucket.update()
+        st.success("✅ CORS configuration updated for Firebase bucket")
+        return True
+    except Exception as e:
+        st.error(f"Failed to update CORS: {e}")
+        return False
+
 # ——— FIREBASE ADMIN INIT ———
 fb_creds_dict = json.loads(st.secrets["FIREBASE_CREDENTIALS_JSON"])
 
@@ -20,14 +60,16 @@ tf.flush()
 cred_path = tf.name
 
 # Initialize Firebase Admin exactly once
-# Initialize Firebase Admin exactly once
 if not firebase_admin._apps:
     try:
         cred = credentials.Certificate(cred_path)
         firebase_admin.initialize_app(cred, {
-            "storageBucket": "interview-agent-53543.firebasestorage.app"  # Updated bucket name
+            "storageBucket": "interview-agent-53543.firebasestorage.app"
         })
         st.write("✅ Firebase initialized from temp file")
+        
+        # Now call configure_firebase_cors AFTER Firebase is initialized
+        configure_firebase_cors()
     except Exception as e:
         st.error(f"Firebase init failed: {e}")
         raise
@@ -131,23 +173,7 @@ def get_answer_evaluation(question, answer, job_field):
             "skill_levels": {"Technical knowledge": 70, "Communication": 70},
             "improved_answer": "Unable to generate improved answer due to error."
         }
-def configure_firebase_cors():
-    try:
-        # Set CORS for the bucket to allow the dashboard to access the files
-        bucket = storage.bucket()
-        bucket.cors = [
-            {
-                "origin": ["https://intervuai-dashboard.vercel.app", "http://localhost:3000"],
-                "method": ["GET"],
-                "maxAgeSeconds": 3600,
-                "responseHeader": ["Content-Type", "Access-Control-Allow-Origin"]
-            }
-        ]
-        bucket.update()
-        st.success("✅ CORS configuration updated for Firebase bucket")
-    except Exception as e:
-        st.error(f"Failed to update CORS: {e}")
-        
+
 def save_evaluation_data(evaluations, interviewee_name):
     """
     Save the evaluation data to a JSON file and upload it to Firebase Storage.
@@ -192,10 +218,26 @@ def save_evaluation_data(evaluations, interviewee_name):
                 firebase_admin.initialize_app(cred, {
                     "storageBucket": "interview-agent-53543.firebasestorage.app"
                 })
+                
+                # Configure CORS immediately after initialization
+                configure_firebase_cors()
             
             bucket = storage.bucket()
             blob = bucket.blob(f"evaluations/{filename}")
             blob.upload_from_filename(str(file_path))
+            
+            # Add content type metadata
+            blob.content_type = "application/json"
+            
+            # Add CORS headers in the metadata
+            metadata = {
+                "Cache-Control": "public, max-age=3600",
+                "Content-Disposition": f"inline; filename={filename}"
+            }
+            blob.metadata = metadata
+            blob.patch()
+            
+            # Make the file publicly accessible
             blob.make_public()
             public_url = blob.public_url
             
