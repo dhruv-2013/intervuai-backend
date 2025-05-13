@@ -1562,6 +1562,12 @@ elif st.session_state.setup_stage == "interview":
                     
                 
                     audio_bytes = audio_recorder(pause_threshold=3.0, sample_rate=16000, key="rec")
+                    if audio_bytes:
+                        st.audio(audio_bytes, format="audio/wav")
+                        st.success("Audio captured!")
+                    else:
+                        st.warning("No audio detected. Try speaking and pausing.")
+
 
                     
                     if audio_bytes:
