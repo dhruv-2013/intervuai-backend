@@ -1335,9 +1335,6 @@ elif st.session_state.interview_complete:
 # Complete fixed implementation for the interview question phase
 # Replace the entire Question phase section in your code with this implementation
 
-# Complete fixed implementation for the interview question phase
-# Replace the entire Question phase section in your code with this implementation
-
 # Question phase
 elif st.session_state.interview_stage == "question":
     # Define all the necessary variables for the current question
