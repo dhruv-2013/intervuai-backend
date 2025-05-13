@@ -1335,8 +1335,41 @@ elif st.session_state.interview_complete:
 # Complete fixed implementation for the interview question phase
 # Replace the entire Question phase section in your code with this implementation
 
+# This is the correct order for your interview flow code
+# Copy and paste this as a complete replacement for the interview flow section
+
+# Interview Screen (introduction and questions)
+elif st.session_state.setup_stage == "interview" and st.session_state.interview_stage == "introduction":
+    try:
+        # Create personalized introduction
+        interviewee_name = st.session_state.interviewer_name or "candidate"
+        job_role = st.session_state.selected_job_field
+        
+        intro_text = f"Hi {interviewee_name}, welcome to your interview practice for a {job_role} role. I'll be asking you a series of questions."
+        
+        # Generate audio for the introduction
+        if st.session_state.use_voice:
+            audio_fp = text_to_speech(intro_text)
+            autoplay_audio(audio_fp)
+        
+        # Display the introduction text with minimal styling
+        st.info(intro_text)
+        
+        # Show a "Continue" button to proceed to the first question
+        if st.button("Continue to First Question", type="primary"):
+            st.session_state.current_question_idx = 0
+            st.session_state.interview_stage = "question"
+            st.session_state.question_spoken = False
+            st.rerun()
+            
+    except Exception as e:
+        st.error(f"Error in introduction: {str(e)}")
+        if st.button("Continue to Questions"):
+            st.session_state.interview_stage = "question"
+            st.rerun()
+
 # Question phase
-elif st.session_state.interview_stage == "question":
+elif st.session_state.setup_stage == "interview" and st.session_state.interview_stage == "question":
     # Define all the necessary variables for the current question
     current_q_data = st.session_state.questions[st.session_state.current_question_idx]
     current_category = current_q_data["category"]
@@ -1564,39 +1597,6 @@ elif st.session_state.interview_stage == "question":
                 st.rerun()
 
 # If we got to this point without displaying a page, something went wrong
-# Replace the last section of your code (the error handling part) with this:
-
-# Introduction phase for the interview
-elif st.session_state.setup_stage == "interview" and st.session_state.interview_stage == "introduction":
-    try:
-        # Create personalized introduction
-        interviewee_name = st.session_state.interviewer_name or "candidate"
-        job_role = st.session_state.selected_job_field
-        
-        intro_text = f"Hi {interviewee_name}, welcome to your interview practice for a {job_role} role. I'll be asking you a series of questions."
-        
-        # Generate audio for the introduction
-        if st.session_state.use_voice:
-            audio_fp = text_to_speech(intro_text)
-            autoplay_audio(audio_fp)
-        
-        # Display the introduction text with minimal styling
-        st.info(intro_text)
-        
-        # Show a "Continue" button to proceed to the first question
-        if st.button("Continue to First Question", type="primary"):
-            st.session_state.current_question_idx = 0
-            st.session_state.interview_stage = "question"
-            st.session_state.question_spoken = False
-            st.rerun()
-            
-    except Exception as e:
-        st.error(f"Error in introduction: {str(e)}")
-        if st.button("Continue to Questions"):
-            st.session_state.interview_stage = "question"
-            st.rerun()
-
-# If we got to this point without displaying a page, something went wrong - KEEP RESET BUTTON
 else:
     st.error("An error occurred in the application flow. Please use the Reset button below to restart.")
     
