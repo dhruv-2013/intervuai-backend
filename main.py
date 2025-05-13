@@ -1566,3 +1566,11 @@ elif st.session_state.interview_stage == "question":
                 
                 st.rerun()
 
+# If we got to this point without displaying a page, something went wrong
+            else:
+                st.error("An error occurred in the application flow. Please restart the application.")
+    if st.button("Reset Application"):
+        for key in st.session_state.keys():
+            del st.session_state[key]
+        st.session_state.setup_stage = "welcome_page"
+        st.rerun()
