@@ -52,6 +52,9 @@ except Exception as e:
     st.error(f"Error initializing Firebase credentials: {e}")
     
 # Initialize session state variables
+# Also add these modifications to your session state initialization
+
+# Initialize session state variables
 if "questions" not in st.session_state:
     st.session_state.questions = []
 if "current_question_idx" not in st.session_state:
@@ -90,13 +93,37 @@ if "interview_stage" not in st.session_state:
     st.session_state.interview_stage = "introduction"
 if "evaluations" not in st.session_state:
     st.session_state.evaluations = []
+if "faster_transcription" not in st.session_state:
+    st.session_state.faster_transcription = True
+# Complete load_whisper_model function
 
 @st.cache_resource
 def load_whisper_model():
-    model_size = "small" if st.session_state.get("faster_transcription", True) else "medium"
-    device = "cuda" if st.session_state.get("use_gpu", False) else "cpu"
-    compute_type = "float16" if device == "cuda" else "int8"
-    return WhisperModel(model_size, device=device, compute_type=compute_type)
+    """
+    Load the whisper model with proper settings and caching
+    
+    Returns:
+    - WhisperModel instance
+    """
+    try:
+        # Set model parameters based on user preferences
+        model_size = "small" if st.session_state.get("faster_transcription", True) else "medium"
+        device = "cuda" if st.session_state.get("use_gpu", False) else "cpu"
+        compute_type = "float16" if device == "cuda" else "int8"
+        
+        # Log model loading
+        print(f"Loading Whisper model: size={model_size}, device={device}, compute_type={compute_type}")
+        
+        # Create and return the model
+        return WhisperModel(model_size, device=device, compute_type=compute_type)
+    except Exception as e:
+        error_msg = f"Error loading Whisper model: {str(e)}"
+        print(error_msg)
+        st.error(error_msg)
+        
+        # Fallback to smallest model on CPU for reliability
+        print("Falling back to tiny model on CPU")
+        return WhisperModel("tiny", device="cpu", compute_type="int8")
 
 # Get the TTS client with proper caching
 @st.cache_resource
@@ -414,35 +441,64 @@ def generate_questions(job_field, num_questions):
     # No need to shuffle since we want to maintain the category order
     return questions
 
+# Optimized transcribe_audio function - replace your current function with this one
+
 def transcribe_audio(audio_file):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
-        temp_audio.write(audio_file)
-        temp_audio_path = temp_audio.name
+    """
+    Transcribe audio using WhisperModel with proper error handling and status feedback
     
-    model = load_whisper_model()
+    Parameters:
+    - audio_file: bytes of the audio file to transcribe
     
-    if st.session_state.get("faster_transcription", True):
-        segments, info = model.transcribe(
-            temp_audio_path, 
-            beam_size=1,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500),
-            language="en"
-        )
-    else:
-        segments, info = model.transcribe(
-            temp_audio_path, 
-            beam_size=5,
-            language="en"
-        )
+    Returns:
+    - String containing the transcript
+    """
+    try:
+        # Create a temporary file to store the audio
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_audio:
+            temp_audio.write(audio_file)
+            temp_audio_path = temp_audio.name
+        
+        # Load the whisper model with appropriate settings
+        model = load_whisper_model()
+        
+        # Use different transcription settings based on user preference
+        if st.session_state.get("faster_transcription", True):
+            segments, info = model.transcribe(
+                temp_audio_path, 
+                beam_size=1,
+                vad_filter=True,
+                vad_parameters=dict(min_silence_duration_ms=500),
+                language="en"
+            )
+        else:
+            segments, info = model.transcribe(
+                temp_audio_path, 
+                beam_size=5,
+                language="en"
+            )
+        
+        # Combine all segments into a single transcript
+        transcript = ""
+        for segment in segments:
+            transcript += segment.text + " "
+        
+        # Clean up the temporary file
+        os.unlink(temp_audio_path)
+        
+        # Return the cleaned transcript
+        return transcript.strip()
     
-    transcript = ""
-    for segment in segments:
-        transcript += segment.text + " "
-    
-    os.unlink(temp_audio_path)
-    
-    return transcript.strip()
+    except Exception as e:
+        # Clean up temp file if it exists
+        try:
+            if 'temp_audio_path' in locals():
+                os.unlink(temp_audio_path)
+        except:
+            pass
+        
+        # Re-raise with more helpful error message
+        raise Exception(f"Transcription failed: {str(e)}")
 
 # Enhanced answer feedback function that uses structured evaluation
 def get_answer_feedback(question, answer):
@@ -1369,264 +1425,253 @@ elif st.session_state.setup_stage == "interview":
                 st.session_state.interview_stage = "question"
                 st.rerun()
     
-    # Question phase
-    else:
-        current_q_data = st.session_state.questions[st.session_state.current_question_idx]
-        current_category = current_q_data["category"]
-        current_question = current_q_data["question"]
+# Replace the entire "Question phase" section within the interview screen code with this implementation
 
-        # Add a check to ensure we're in question mode
-        if st.session_state.interview_stage == "question":
-            # Add styling for the question phase (keeping dark theme with blue accents)
-            st.markdown("""
-            <style>
-            /* Dark theme with blue accents */
-            .stApp {
-                background-color: #121212;
-                color: white;
-            }
-            
-            /* Progress bar styling */
-            .stProgress > div > div {
-                background-color: #3498db !important;
-            }
-            
-            /* Button styling */
-            .stButton > button {
-                border-color: #3498db !important;
-                color: white !important;
-            }
-            
-            /* Primary button */
-            .stButton > [data-testid="baseButton-primary"] {
-                background-color: #3498db !important;
-                color: white !important;
-            }
-            </style>
-            """, unsafe_allow_html=True)
+# Question phase
+else:
+    current_q_data = st.session_state.questions[st.session_state.current_question_idx]
+    current_category = current_q_data["category"]
+    current_question = current_q_data["question"]
 
-            # Display question with minimalistic styling but dark theme
-            # Font size increased from 20px to 24px
+    # Add a check to ensure we're in question mode
+    if st.session_state.interview_stage == "question":
+        # Add styling for the question phase (keeping dark theme with blue accents)
+        st.markdown("""
+        <style>
+        /* Dark theme with blue accents */
+        .stApp {
+            background-color: #121212;
+            color: white;
+        }
+        
+        /* Progress bar styling */
+        .stProgress > div > div {
+            background-color: #3498db !important;
+        }
+        
+        /* Button styling */
+        .stButton > button {
+            border-color: #3498db !important;
+            color: white !important;
+        }
+        
+        /* Primary button */
+        .stButton > [data-testid="baseButton-primary"] {
+            background-color: #3498db !important;
+            color: white !important;
+        }
+
+        /* Recording animation */
+        @keyframes pulsate {
+            0% { background-color: rgba(255, 0, 0, 0.5); }
+            50% { background-color: rgba(255, 0, 0, 0.8); }
+            100% { background-color: rgba(255, 0, 0, 0.5); }
+        }
+        
+        .recording-indicator {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 10px;
+            animation: pulsate 1.5s ease-in-out infinite;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        # Display question with minimalistic styling but dark theme
+        st.markdown(f"""
+        <div style="margin-bottom: 20px;">
+            <p style="color: #3498db; font-size: 14px; margin-bottom: 5px;">Question: {st.session_state.current_question_idx + 1} of {len(st.session_state.questions)}</p>
+            <p style="font-size: 24px; margin-top: 0;">{current_question}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Display a simple progress bar
+        st.progress((st.session_state.current_question_idx) / len(st.session_state.questions))
+
+        # Ensure the question gets spoken once
+        if not st.session_state.question_spoken and st.session_state.use_voice:
+            try:
+                # Simple spoken question
+                spoken_question = current_question
+
+                # Generate TTS audio
+                audio_fp = text_to_speech(spoken_question)
+
+                if audio_fp:
+                    autoplay_audio(audio_fp)
+                    time.sleep(1)
+                    st.session_state.question_spoken = True
+                else:
+                    st.error("TTS audio was not generated correctly.")
+
+            except Exception as e:
+                st.error(f"Error playing question audio: {str(e)}")
+                st.session_state.question_spoken = True
+
+        # Response input area with minimal styling
+        if st.session_state.transcription:
+            # Display transcribed answer with dark theme styling
             st.markdown(f"""
             <div style="margin-bottom: 20px;">
-                <p style="color: #3498db; font-size: 14px; margin-bottom: 5px;">Question: {st.session_state.current_question_idx + 1} of {len(st.session_state.questions)}</p>
-                <p style="font-size: 24px; margin-top: 0;">{current_question}</p>
+                <p style="color: #3498db; font-size: 14px; margin-bottom: 5px;">Your answer:</p>
+                <p style="background-color: #1E1E1E; padding: 15px; border-radius: 4px;">{st.session_state.transcription}</p>
             </div>
             """, unsafe_allow_html=True)
 
-            # Display a simple progress bar
-            st.progress((st.session_state.current_question_idx) / len(st.session_state.questions))
+            edited_answer = st.text_area(
+                "Edit your answer if needed:",
+                value=st.session_state.transcription,
+                height=150
+            )
 
-            # Ensure the question gets spoken once
-            if not st.session_state.question_spoken and st.session_state.use_voice:
-                try:
-                    # Simple spoken question
-                    spoken_question = current_question
+            if st.button("Save Answer & Continue", type="primary"):
+                st.session_state.answers[st.session_state.current_question_idx] = edited_answer
+                with st.spinner("Generating feedback..."):
+                    feedback = get_answer_feedback(current_question, edited_answer)
+                    st.session_state.feedbacks[st.session_state.current_question_idx] = feedback
 
-                    # Generate TTS audio
-                    audio_fp = text_to_speech(spoken_question)
+                st.session_state.current_question_idx += 1
+                st.session_state.transcription = ""
+                st.session_state.audio_data = None
+                st.session_state.question_spoken = False
 
-                    if audio_fp:
-                        autoplay_audio(audio_fp)
-                        time.sleep(1)
-                        st.session_state.question_spoken = True
-                    else:
-                        st.error("TTS audio was not generated correctly.")
+                if st.session_state.current_question_idx >= len(st.session_state.questions):
+                    st.session_state.interview_complete = True
 
-                except Exception as e:
-                    st.error(f"Error playing question audio: {str(e)}")
-                    st.session_state.question_spoken = True
+                st.rerun()
 
-            # Response input area with minimal styling
-            if st.session_state.transcription:
-                # Display transcribed answer with dark theme styling
-                st.markdown(f"""
-                <div style="margin-bottom: 20px;">
-                    <p style="color: #3498db; font-size: 14px; margin-bottom: 5px;">Your answer:</p>
-                    <p style="background-color: #1E1E1E; padding: 15px; border-radius: 4px;">{st.session_state.transcription}</p>
-                </div>
-                """, unsafe_allow_html=True)
-
-                edited_answer = st.text_area(
-                    "Edit your answer if needed:",
-                    value=st.session_state.transcription,
-                    height=150
-                )
-
-                if st.button("Save Answer & Continue", type="primary"):
-                    st.session_state.answers[st.session_state.current_question_idx] = edited_answer
-                    with st.spinner("Generating feedback..."):
-                        feedback = get_answer_feedback(current_question, edited_answer)
-                        st.session_state.feedbacks[st.session_state.current_question_idx] = feedback
-
-                    st.session_state.current_question_idx += 1
-                    st.session_state.transcription = ""
-                    st.session_state.audio_data = None
-                    st.session_state.question_spoken = False
-
-                    if st.session_state.current_question_idx >= len(st.session_state.questions):
-                        st.session_state.interview_complete = True
-
-                    st.rerun()
-
-            else:
-                # WhatsApp-style input with microphone button
-                st.markdown("""
-                <style>
-                /* Styling for the input container */
-                .whatsapp-input {
-                    display: flex;
-                    align-items: center;
-                    background-color: #1E2130;
-                    border-radius: 8px;
-                    padding: 5px;
-                    margin-top: 20px;
-                    border: 1px solid #333333;
-                }
+        else:
+            # Create a container for the answer input and mic controls
+            answer_container = st.container()
+            
+            with answer_container:
+                st.markdown("<p style='color: #3498db; font-size: 14px; margin-bottom: 5px;'>Your answer:</p>", unsafe_allow_html=True)
                 
-                /* Styling for text area inside the container */
-                .whatsapp-input textarea {
-                    flex-grow: 1;
-                    background-color: transparent !important;
-                    border: none !important;
-                    color: white !important;
-                    resize: none;
-                    padding: 10px;
-                    min-height: 50px;
-                }
+                # Create columns for text input and recording button
+                text_col, mic_col = st.columns([5, 1])
                 
-                /* Styling for the mic button */
-                .mic-button {
-                    background-color: #3498db;
-                    color: white;
-                    border: none;
-                    border-radius: 50%;
-                    width: 40px;
-                    height: 40px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    margin-right: 5px;
-                    cursor: pointer;
-                }
+                with text_col:
+                    text_answer = st.text_area(
+                        "",
+                        height=100,
+                        key="text_answer_field",
+                        placeholder="Type your answer or click the mic to record..."
+                    )
                 
-                /* Mic icon */
-                .mic-icon {
-                    font-size: 20px;
-                }
+                # Initialize recording state if not present
+                if "recording" not in st.session_state:
+                    st.session_state.recording = False
                 
-                /* Submit button styling */
-                .stButton > button {
-                    background-color: #3498db !important;
-                    color: white !important;
-                    border: none !important;
-                }
-                
-                /* Remove focus outline */
-                textarea:focus {
-                    outline: none !important;
-                    box-shadow: none !important;
-                }
-                </style>
-                
-                <p style="color: #3498db; font-size: 14px; margin-bottom: 5px;">Your answer:</p>
-                """, unsafe_allow_html=True)
-                
-                # Creating columns for the input and recording status
-                col1, col2 = st.columns([5, 1])
-                
-                with col1:
-                    text_answer = st.text_area("", 
-                                              height=100, 
-                                              key="text_answer_field", 
-                                              placeholder="Type your answer or click the mic to record...")
-                
-                with col2:
-                    # Using a streamlit button styled to look like a mic button
-                    st.markdown("""
-                    <div style="display: flex; justify-content: center; align-items: center; height: 100%;">
-                        <div id="mic-button-container"></div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                # Record button in the second column
+                with mic_col:
+                    # Change button text based on recording state
+                    rec_button_text = "⏹️ Stop" if st.session_state.recording else "🎤 Record"
                     
-                    is_recording = st.button("🎤", key="record_button")
+                    # Add a recording indicator if active
+                    if st.session_state.recording:
+                        st.markdown('<div class="recording-indicator"></div>', unsafe_allow_html=True)
+                    
+                    # The record button toggles recording state
+                    if st.button(rec_button_text, key="toggle_recording"):
+                        st.session_state.recording = not st.session_state.recording
+                        st.rerun()  # Rerun to update UI
                 
-                # Handle recording state
-                if is_recording:
-                    st.session_state.is_recording = True
+                # Show recording status
+                if st.session_state.recording:
                     st.markdown("""
-                    <p style="color: #3498db; text-align: center; margin-top: 5px; font-size: 12px;">
-                        Recording... (speak now)
+                    <p style="color: #ff4b4b; text-align: center; margin-top: 5px; font-size: 14px;">
+                        Recording in progress... Speak clearly and press Stop when finished.
                     </p>
                     """, unsafe_allow_html=True)
                     
-                
-                    audio_bytes = audio_recorder(pause_threshold=3.0, sample_rate=16000, key="rec")
-                    if audio_bytes:
-                        st.audio(audio_bytes, format="audio/wav")
-                        st.success("Audio captured!")
-                    else:
-                        st.warning("No audio detected. Try speaking and pausing.")
-
-
+                    # Use audio_recorder component to capture audio
+                    audio_bytes = audio_recorder(
+                        pause_threshold=3.0,
+                        sample_rate=16000,
+                        recording_color="#ff4b4b",
+                        neutral_color="#3498db",
+                        key="audio_recorder"
+                    )
                     
+                    # Process the recorded audio
                     if audio_bytes:
-                        st.session_state.audio_data = audio_bytes
-                        st.markdown("""
-                        <p style="margin-top: 8px; font-size: 13px; color: #cccccc; text-align: center;">
-                            Processing audio...
-                        </p>
-                        """, unsafe_allow_html=True)
-
-                        with st.spinner("Transcribing..."):
-                            transcript = transcribe_audio(audio_bytes)
-                            st.session_state.transcription = transcript
-                            st.rerun()
-                
-                # Submit button
+                        with st.spinner("Transcribing your answer..."):
+                            try:
+                                # Save the audio data
+                                st.session_state.audio_data = audio_bytes
+                                
+                                # Transcribe the audio
+                                transcript = transcribe_audio(audio_bytes)
+                                
+                                # Save the transcription
+                                st.session_state.transcription = transcript
+                                
+                                # Reset recording state and rerun to show the transcription
+                                st.session_state.recording = False
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error during transcription: {str(e)}")
+                                st.session_state.recording = False
+            
+            # Submit button for typed answers
+            if text_answer.strip():
                 if st.button("Submit Answer", type="primary"):
-                    if text_answer.strip():
-                        st.session_state.transcription = text_answer
-                        st.rerun()
-                    else:
-                        st.error("Please provide an answer before submitting.")
-
-            # Feedback section with minimal styling
-            if st.session_state.show_feedback:
+                    st.session_state.transcription = text_answer
+                    st.rerun()
+            else:
+                # Disable button styling when no text is entered
                 st.markdown("""
-                <p style="color: #3498db; font-size: 16px; margin-top: 25px; margin-bottom: 10px;">Feedback on Your Answer</p>
+                <style>
+                    .submit-disabled {
+                        opacity: 0.6;
+                        cursor: not-allowed;
+                    }
+                </style>
                 """, unsafe_allow_html=True)
                 
-                with st.spinner("Generating feedback..."):
-                    if not st.session_state.feedbacks[st.session_state.current_question_idx]:
-                        feedback = get_answer_feedback(current_question, st.session_state.transcription)
-                        st.session_state.feedbacks[st.session_state.current_question_idx] = feedback
-                    else:
-                        feedback = st.session_state.feedbacks[st.session_state.current_question_idx]
+                # Placeholder for disabled button
+                st.markdown("""
+                <button class="submit-disabled" disabled>Submit Answer</button>
+                """, unsafe_allow_html=True)
+
+        # Feedback section with minimal styling
+        if st.session_state.show_feedback:
+            st.markdown("""
+            <p style="color: #3498db; font-size: 16px; margin-top: 25px; margin-bottom: 10px;">Feedback on Your Answer</p>
+            """, unsafe_allow_html=True)
+            
+            with st.spinner("Generating feedback..."):
+                if not st.session_state.feedbacks[st.session_state.current_question_idx]:
+                    feedback = get_answer_feedback(current_question, st.session_state.transcription)
+                    st.session_state.feedbacks[st.session_state.current_question_idx] = feedback
+                else:
+                    feedback = st.session_state.feedbacks[st.session_state.current_question_idx]
+                
+                st.markdown(f"""
+                <div style="background-color: #1E1E1E; padding: 15px; border-radius: 4px; border: 1px solid #3498db;">
+                    {feedback}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button("Continue to Next Question", type="primary"):
+                    st.session_state.answers[st.session_state.current_question_idx] = st.session_state.transcription
                     
-                    st.markdown(f"""
-                    <div style="background-color: #1E1E1E; padding: 15px; border-radius: 4px; border: 1px solid #3498db;">
-                        {feedback}
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.session_state.current_question_idx += 1
+                    st.session_state.transcription = ""
+                    st.session_state.audio_data = None
+                    st.session_state.show_feedback = False
+                    st.session_state.question_spoken = False
                     
-                    if st.button("Continue to Next Question", type="primary"):
-                        st.session_state.answers[st.session_state.current_question_idx] = st.session_state.transcription
-                        
-                        st.session_state.current_question_idx += 1
-                        st.session_state.transcription = ""
-                        st.session_state.audio_data = None
-                        st.session_state.show_feedback = False
-                        st.session_state.question_spoken = False
-                        
-                        if st.session_state.current_question_idx >= len(st.session_state.questions):
-                            st.session_state.interview_complete = True
-                        
-                        st.rerun()
+                    if st.session_state.current_question_idx >= len(st.session_state.questions):
+                        st.session_state.interview_complete = True
+                    
+                    st.rerun()
 
 # If we got to this point without displaying a page, something went wrong
-else:
-    st.error("An error occurred in the application flow. Please restart the application.")
+    else:
+       st.error("An error occurred in the application flow. Please restart the application.")
     if st.button("Reset Application"):
         for key in st.session_state.keys():
             del st.session_state[key]
