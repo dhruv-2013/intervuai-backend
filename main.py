@@ -1560,7 +1560,9 @@ elif st.session_state.setup_stage == "interview":
                     </p>
                     """, unsafe_allow_html=True)
                     
-                    audio_bytes = audio_recorder(pause_threshold=2.0, sample_rate=16000)
+                
+                    audio_bytes = audio_recorder(pause_threshold=3.0, sample_rate=16000, key="rec")
+
                     
                     if audio_bytes:
                         st.session_state.audio_data = audio_bytes
