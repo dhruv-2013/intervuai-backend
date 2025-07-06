@@ -13,3 +13,5 @@ google-cloud-texttospeech
 google-auth
 Pillow
 firebase-admin
+PyPDF2
+python-docx
