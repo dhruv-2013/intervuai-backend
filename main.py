@@ -1480,14 +1480,7 @@ elif st.session_state.setup_stage == "sign_up":
         st.session_state.setup_stage = "welcome_page"
         st.rerun()
 elif st.session_state.setup_stage == "resume_chatbot":
-    # Run the career coach module
-    resume_analysis, career_recommendations = career_coach.run_career_coach()
-    
-    # Store the results in session state for potential use in other parts of the app
-    if resume_analysis:
-        st.session_state.resume_analysis = resume_analysis
-    if career_recommendations:
-        st.session_state.career_recommendations = career_recommendations
+    career_coach.run_career_coach()
     
     # Navigation buttons
     st.markdown("---")
