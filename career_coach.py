@@ -119,6 +119,10 @@ def chatbot_response(user_message, resume_analysis):
     """Generate chatbot response - same format as main.py"""
     chat_history = st.session_state.get('cc_chat_history', [])
     
+    # Check if we have resume data to work with
+    if not resume_analysis or not resume_analysis.get('name'):
+        return "I'd be happy to help with your career questions! However, I notice you haven't uploaded your resume yet. Please upload your resume first so I can provide personalized advice based on your background and experience."
+    
     context = f"""
     You are a career counselor and interview coach. You have access to the user's resume analysis:
     
@@ -131,11 +135,11 @@ def chatbot_response(user_message, resume_analysis):
     - Strengths: {', '.join(resume_analysis.get('strengths', []))}
     
     Chat History:
-    {chr(10).join([f"{msg['role']}: {msg['content']}" for msg in chat_history[-5:]])}
+    {chr(10).join([f"{msg['role']}: {msg['content']}" for msg in chat_history[-3:]])}
     
     User Message: {user_message}
     
-    Provide helpful, personalized career advice based on their background. Be conversational and supportive.
+    Provide helpful, personalized career advice based on their background. Be conversational and supportive. Keep responses under 200 words.
     """
     
     try:
@@ -143,12 +147,13 @@ def chatbot_response(user_message, resume_analysis):
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": context}],
             temperature=0.7,
-            max_tokens=500
+            max_tokens=300
         )
         
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"I apologize, but I'm having trouble processing your request right now. Please try again later."
+        # More helpful error message
+        return f"I'm experiencing technical difficulties connecting to my AI service. This might be due to high demand or a temporary issue. Please try again in a moment, or try asking a different question."
 
 def run_career_coach():
     """Main function to run the career coach interface"""
@@ -272,39 +277,46 @@ def run_career_coach():
                     st.rerun()
     
     else:
+        # Only show interface if resume is uploaded and analyzed
+        if not st.session_state.cc_resume_analysis:
+            st.warning("⚠️ Please upload and analyze your resume first to access personalized career coaching features.")
+            return
+            
         # Display resume summary
-        if st.session_state.cc_resume_analysis:
-            with st.expander("📋 Resume Summary", expanded=False):
-                analysis = st.session_state.cc_resume_analysis
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(f"**Name:** {analysis.get('name', 'Not specified')}")
-                    st.write(f"**Current Role:** {analysis.get('current_role', 'Not specified')}")
-                    st.write(f"**Experience:** {analysis.get('experience_years', 'Not specified')} years")
-                    st.write(f"**Skills:** {', '.join(analysis.get('skills', [])[:5])}")
-                
-                with col2:
-                    st.write(f"**Recommended Fields:** {', '.join(analysis.get('recommended_fields', []))}")
-                    st.write(f"**Technologies:** {', '.join(analysis.get('technologies', [])[:5])}")
-                    st.write(f"**Industries:** {', '.join(analysis.get('industries', []))}")
+        with st.expander("📋 Resume Summary", expanded=False):
+            analysis = st.session_state.cc_resume_analysis
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Name:** {analysis.get('name', 'Not specified')}")
+                st.write(f"**Current Role:** {analysis.get('current_role', 'Not specified')}")
+                st.write(f"**Experience:** {analysis.get('experience_years', 'Not specified')} years")
+                st.write(f"**Skills:** {', '.join(analysis.get('skills', [])[:5])}")
+            
+            with col2:
+                st.write(f"**Recommended Fields:** {', '.join(analysis.get('recommended_fields', []))}")
+                st.write(f"**Technologies:** {', '.join(analysis.get('technologies', [])[:5])}")
+                st.write(f"**Industries:** {', '.join(analysis.get('industries', []))}")
         
         # Career recommendations
         if st.session_state.cc_career_recommendations:
             with st.expander("🎯 Career Recommendations", expanded=False):
                 recs = st.session_state.cc_career_recommendations
                 
-                st.markdown("**Suitable Roles:**")
-                for role in recs.get('suitable_roles', []):
-                    st.write(f"• {role}")
+                if recs.get('suitable_roles'):
+                    st.markdown("**Suitable Roles:**")
+                    for role in recs.get('suitable_roles', []):
+                        st.write(f"• {role}")
                 
-                st.markdown("**Skills to Develop:**")
-                for skill in recs.get('skill_recommendations', []):
-                    st.write(f"• {skill}")
+                if recs.get('skill_recommendations'):
+                    st.markdown("**Skills to Develop:**")
+                    for skill in recs.get('skill_recommendations', []):
+                        st.write(f"• {skill}")
                 
-                st.markdown("**Next Steps:**")
-                for step in recs.get('next_steps', []):
-                    st.write(f"• {step}")
+                if recs.get('next_steps'):
+                    st.markdown("**Next Steps:**")
+                    for step in recs.get('next_steps', []):
+                        st.write(f"• {step}")
         
         # Quick action buttons
         st.markdown("### 🚀 Quick Actions")
@@ -339,6 +351,7 @@ def run_career_coach():
                 st.session_state.cc_resume_analysis = {}
                 st.session_state.cc_career_recommendations = []
                 st.session_state.cc_chat_history = []
+                st.session_state.cc_manual_input = False
                 st.rerun()
         
         # Chat interface
@@ -366,8 +379,8 @@ def run_career_coach():
                 st.session_state.cc_chat_history.append({"role": "bot", "content": bot_response})
                 st.rerun()
         
-        # Suggested questions
-        if not st.session_state.cc_chat_history:
+        # Suggested questions - only show if resume is analyzed
+        if not st.session_state.cc_chat_history and st.session_state.cc_resume_analysis:
             st.markdown("**💡 Try asking:**")
             suggestions = [
                 "What roles am I best suited for based on my experience?",
@@ -383,3 +396,5 @@ def run_career_coach():
                     bot_response = chatbot_response(suggestion, st.session_state.cc_resume_analysis)
                     st.session_state.cc_chat_history.append({"role": "bot", "content": bot_response})
                     st.rerun()
+    
+    # Don't return anything - function manages its own state
