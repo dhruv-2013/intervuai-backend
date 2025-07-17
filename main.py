@@ -15,7 +15,10 @@ from io import BytesIO
 from google.oauth2 import service_account
 from google.cloud import texttospeech
 import google.auth
-
+import re
+import PyPDF2
+import docx
+from io import BytesIO
 # Import the answer evaluation module
 from answer_evaluation import get_answer_evaluation, save_evaluation_data, calculate_aggregate_scores, aggregate_skill_assessment, generate_career_insights
 
@@ -90,6 +93,20 @@ if "interview_stage" not in st.session_state:
     st.session_state.interview_stage = "introduction"
 if "evaluations" not in st.session_state:
     st.session_state.evaluations = []
+if "chatbot_mode" not in st.session_state:
+    st.session_state.chatbot_mode = False
+if "resume_text" not in st.session_state:
+    st.session_state.resume_text = ""
+if "resume_analysis" not in st.session_state:
+    st.session_state.resume_analysis = {}
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "personalized_questions" not in st.session_state:
+    st.session_state.personalized_questions = []
+if "career_recommendations" not in st.session_state:
+    st.session_state.career_recommendations = []
+if "manual_input" not in st.session_state:
+    st.session_state.manual_input = False
 
 @st.cache_resource
 def load_whisper_model():
@@ -184,6 +201,9 @@ def get_firebase_credentials():
 
 # The rest of your code follows...
  
+# Enhanced Question Bank for Interview Agent
+# Replace the existing JOB_FIELDS dictionary in your code with this expanded version
+
 JOB_FIELDS = {
     "Software Engineering": {
         "Technical": [
@@ -193,21 +213,74 @@ JOB_FIELDS = {
             "Explain the concept of time and space complexity.",
             "What design patterns have you used in your projects?",
             "How do you ensure your code is maintainable and scalable?",
-            "Explain how you would implement error handling in a distributed system."
+            "Explain how you would implement error handling in a distributed system.",
+            "What's the difference between SQL and NoSQL databases?",
+            "How would you optimize a slow database query?",
+            "Explain the concept of RESTful APIs and their principles.",
+            "What's the difference between synchronous and asynchronous programming?",
+            "How do you handle memory management in your preferred language?",
+            "Explain the concept of dependency injection.",
+            "What's the difference between unit testing and integration testing?",
+            "How would you implement caching in a web application?",
+            "Explain the CAP theorem and its implications.",
+            "What's the difference between horizontal and vertical scaling?",
+            "How do you ensure thread safety in concurrent programming?",
+            "Explain the concept of microservices architecture.",
+            "What's your approach to code versioning and branching strategies?",
+            "How would you design a URL shortener like bit.ly?",
+            "Explain the difference between authentication and authorization.",
+            "What's the purpose of containerization and how have you used it?",
+            "How do you handle API rate limiting?",
+            "Explain the concept of load balancing.",
+            "What's your experience with message queues?",
+            "How would you implement real-time features in a web application?",
+            "Explain the concept of database normalization.",
+            "What's the difference between stateful and stateless applications?",
+            "How do you approach performance profiling and optimization?"
         ],
         "Behavioral": [
             "Tell me about a time you had to work under pressure to meet a deadline.",
             "Describe a situation where you disagreed with a team member on a technical approach.",
             "How do you handle feedback on your code during code reviews?",
             "Tell me about a time you identified and fixed a bug that others couldn't solve.",
-            "How do you keep up with the latest technologies and programming languages?"
+            "How do you keep up with the latest technologies and programming languages?",
+            "Describe a time when you had to learn a new technology quickly.",
+            "Tell me about a project that didn't go as planned and how you handled it.",
+            "How do you prioritize tasks when working on multiple projects?",
+            "Describe a time when you had to explain a complex technical concept to a non-technical person.",
+            "Tell me about a time you received constructive criticism on your work.",
+            "How do you handle working with legacy code?",
+            "Describe a situation where you had to make a difficult technical decision.",
+            "Tell me about a time you mentored a junior developer.",
+            "How do you approach working in a team with different skill levels?",
+            "Describe a time when you had to refactor a large codebase.",
+            "Tell me about a mistake you made in your code and how you learned from it.",
+            "How do you handle tight deadlines without compromising code quality?",
+            "Describe a time when you had to work with a difficult stakeholder.",
+            "Tell me about a time you improved team productivity or processes.",
+            "How do you stay motivated during long, challenging projects?"
         ],
         "Role-specific": [
             "How do you approach testing your code?",
             "Describe your experience with CI/CD pipelines.",
             "How do you balance technical debt with delivering features?",
             "Explain your approach to optimizing application performance.",
-            "How would you explain a complex technical concept to a non-technical stakeholder?"
+            "How would you explain a complex technical concept to a non-technical stakeholder?",
+            "What's your experience with agile development methodologies?",
+            "How do you ensure security best practices in your code?",
+            "Describe your approach to documentation and knowledge sharing.",
+            "How do you handle production incidents and post-mortems?",
+            "What's your experience with cloud platforms and services?",
+            "How do you approach capacity planning for applications?",
+            "Describe your experience with monitoring and observability tools.",
+            "How do you handle database migrations and schema changes?",
+            "What's your approach to API design and versioning?",
+            "How do you ensure accessibility in web applications?",
+            "Describe your experience with mobile development considerations.",
+            "How do you approach internationalization and localization?",
+            "What's your experience with DevOps practices?",
+            "How do you handle cross-browser compatibility issues?",
+            "Describe your approach to technical leadership and decision-making."
         ]
     },
     "Data Science/Analysis": {
@@ -218,21 +291,74 @@ JOB_FIELDS = {
             "What statistical methods do you use to validate your findings?",
             "Explain the concept of overfitting and how to avoid it.",
             "How would you approach feature selection for a machine learning model?",
-            "Explain the difference between correlation and causation with an example."
+            "Explain the difference between correlation and causation with an example.",
+            "What's the difference between precision and recall?",
+            "How do you handle imbalanced datasets?",
+            "Explain the bias-variance tradeoff.",
+            "What's your approach to cross-validation?",
+            "How do you evaluate the performance of a regression model?",
+            "Explain the concept of regularization in machine learning.",
+            "What's the difference between bagging and boosting?",
+            "How do you handle categorical variables in machine learning?",
+            "Explain the concept of dimensionality reduction.",
+            "What's your experience with time series analysis?",
+            "How do you approach outlier detection and treatment?",
+            "Explain the concept of ensemble methods.",
+            "What's the difference between parametric and non-parametric models?",
+            "How do you handle data leakage in machine learning?",
+            "Explain the concept of feature engineering.",
+            "What's your approach to model selection and hyperparameter tuning?",
+            "How do you handle multi-collinearity in regression models?",
+            "Explain the concept of clustering and its applications.",
+            "What's your experience with deep learning frameworks?",
+            "How do you approach natural language processing tasks?",
+            "Explain the concept of recommendation systems.",
+            "What's your experience with big data technologies?",
+            "How do you approach experiment design and A/B testing?"
         ],
         "Behavioral": [
             "Tell me about a time when your data analysis led to a significant business decision.",
             "How do you communicate complex data insights to non-technical stakeholders?",
             "Describe a situation where you had to defend your analytical approach.",
             "Tell me about a project where you had to work with messy or incomplete data.",
-            "How do you ensure your analysis is accurate and reliable?"
+            "How do you ensure your analysis is accurate and reliable?",
+            "Describe a time when your initial hypothesis was proven wrong by the data.",
+            "Tell me about a challenging data problem you solved creatively.",
+            "How do you handle conflicting requirements from different stakeholders?",
+            "Describe a time when you had to work under tight deadlines on a data project.",
+            "Tell me about a time you had to learn a new analytical tool or technique quickly.",
+            "How do you approach working with domain experts who aren't data-savvy?",
+            "Describe a situation where you found an unexpected pattern in data.",
+            "Tell me about a time you had to present negative or disappointing results.",
+            "How do you handle situations where data quality is poor?",
+            "Describe a time when you had to balance speed vs. accuracy in analysis.",
+            "Tell me about a project where you had to collaborate with multiple teams.",
+            "How do you stay current with new developments in data science?",
+            "Describe a time when you had to question the data collection process.",
+            "Tell me about a mistake you made in analysis and how you corrected it.",
+            "How do you approach ethical considerations in data science?"
         ],
         "Role-specific": [
             "What visualization tools do you prefer and why?",
             "How do you determine which statistical test to use for a given problem?",
             "Describe your approach to A/B testing.",
             "How do you translate business questions into data queries?",
-            "What metrics would you track to measure the success of a product feature?"
+            "What metrics would you track to measure the success of a product feature?",
+            "How do you approach data governance and privacy considerations?",
+            "Describe your experience with cloud-based analytics platforms.",
+            "How do you handle version control for data science projects?",
+            "What's your approach to model deployment and monitoring?",
+            "How do you ensure reproducibility in your analysis?",
+            "Describe your experience with real-time data processing.",
+            "How do you approach feature stores and ML operations?",
+            "What's your experience with automated machine learning tools?",
+            "How do you handle data pipeline failures and monitoring?",
+            "Describe your approach to data storytelling and presentation.",
+            "How do you work with data engineers and other technical teams?",
+            "What's your experience with customer segmentation and targeting?",
+            "How do you approach predictive modeling for business outcomes?",
+            "Describe your experience with dashboard design and KPI tracking.",
+            "How do you validate and test machine learning models in production?"
         ]
     },
     "Project Management": {
@@ -243,21 +369,69 @@ JOB_FIELDS = {
             "How do you track and report project progress?",
             "What tools do you use for project planning and why?",
             "How do you handle resource allocation in a project?",
-            "Explain how you would manage scope creep."
+            "Explain how you would manage scope creep.",
+            "What's your experience with agile project management?",
+            "How do you approach project budgeting and cost control?",
+            "Describe your experience with waterfall methodology.",
+            "How do you handle dependencies between different project tasks?",
+            "What's your approach to quality assurance in projects?",
+            "How do you manage project documentation and knowledge transfer?",
+            "Describe your experience with project portfolio management.",
+            "How do you approach change management in projects?",
+            "What's your experience with remote project team management?",
+            "How do you handle project communication and reporting?",
+            "Describe your approach to vendor and contractor management.",
+            "How do you ensure project deliverables meet requirements?",
+            "What's your experience with project management software and tools?",
+            "How do you approach project closure and lessons learned?",
+            "Describe your experience with cross-functional project teams.",
+            "How do you handle project governance and compliance requirements?",
+            "What's your approach to project estimation and planning?",
+            "How do you manage project integration and coordination?"
         ],
         "Behavioral": [
             "Tell me about a time when a project was falling behind schedule.",
             "Describe how you've managed stakeholder expectations.",
             "How do you motivate team members during challenging phases of a project?",
             "Tell me about a project that failed and what you learned from it.",
-            "How do you handle conflicts between team members or departments?"
+            "How do you handle conflicts between team members or departments?",
+            "Describe a time when you had to make a difficult decision under pressure.",
+            "Tell me about a situation where project requirements changed significantly.",
+            "How do you handle team members who are not meeting expectations?",
+            "Describe a time when you had to manage a project with limited resources.",
+            "Tell me about a time you had to communicate bad news to stakeholders.",
+            "How do you handle working with difficult or unresponsive team members?",
+            "Describe a situation where you had to negotiate with vendors or contractors.",
+            "Tell me about a time you had to manage multiple competing priorities.",
+            "How do you handle situations where stakeholders have conflicting requirements?",
+            "Describe a time when you successfully turned around a failing project.",
+            "Tell me about a situation where you had to work with a tight deadline.",
+            "How do you approach building relationships with new team members?",
+            "Describe a time when you had to present project results to senior management.",
+            "Tell me about a situation where you had to adapt your management style.",
+            "How do you handle stress and maintain team morale during difficult projects?"
         ],
         "Role-specific": [
             "How do you prioritize competing deadlines across multiple projects?",
             "Describe how you communicate project status to different audiences.",
             "How do you ensure quality deliverables while maintaining timelines?",
             "What's your approach to gathering requirements from stakeholders?",
-            "How do you manage project budgets and resources?"
+            "How do you manage project budgets and resources?",
+            "Describe your experience with project risk assessment and mitigation.",
+            "How do you handle project team development and training?",
+            "What's your approach to project metrics and KPI tracking?",
+            "How do you manage project scope and prevent scope creep?",
+            "Describe your experience with client or customer-facing projects.",
+            "How do you approach project retrospectives and continuous improvement?",
+            "What's your experience with regulatory or compliance-driven projects?",
+            "How do you handle project escalation and issue resolution?",
+            "Describe your approach to project resource planning and allocation.",
+            "How do you manage project timelines when working with external dependencies?",
+            "What's your experience with digital transformation or technology projects?",
+            "How do you approach stakeholder analysis and engagement planning?",
+            "Describe your experience with project procurement and contract management.",
+            "How do you ensure effective knowledge transfer at project completion?",
+            "What's your approach to managing project risks and assumptions?"
         ]
     },
     "UX/UI Design": {
@@ -268,21 +442,69 @@ JOB_FIELDS = {
             "What tools do you use for wireframing and prototyping?",
             "How do you incorporate accessibility into your designs?",
             "Explain the importance of design systems.",
-            "How do you use data to inform design decisions?"
+            "How do you use data to inform design decisions?",
+            "What's your experience with usability testing?",
+            "How do you approach information architecture?",
+            "Describe your experience with interaction design.",
+            "How do you ensure consistency across different platforms?",
+            "What's your approach to mobile-first design?",
+            "How do you handle design for different screen sizes and devices?",
+            "Describe your experience with design thinking methodology.",
+            "How do you approach color theory and typography in your designs?",
+            "What's your experience with motion design and micro-interactions?",
+            "How do you conduct competitive analysis for design projects?",
+            "Describe your approach to creating user journey maps.",
+            "How do you handle design handoff to developers?",
+            "What's your experience with A/B testing for design decisions?",
+            "How do you approach designing for accessibility and inclusion?",
+            "Describe your experience with design research and validation.",
+            "How do you create and maintain design documentation?",
+            "What's your approach to cross-browser and cross-platform compatibility?",
+            "How do you handle design feedback and iteration cycles?"
         ],
         "Behavioral": [
             "Tell me about a time when you received difficult feedback on your design.",
             "Describe a situation where you had to compromise on a design decision.",
             "How do you advocate for the user when there are business constraints?",
             "Tell me about a design challenge you faced and how you overcame it.",
-            "How do you collaborate with developers to implement your designs?"
+            "How do you collaborate with developers to implement your designs?",
+            "Describe a time when user research contradicted your initial design assumptions.",
+            "Tell me about a project where you had to work with tight deadlines.",
+            "How do you handle conflicting feedback from different stakeholders?",
+            "Describe a situation where you had to design for a user group you weren't familiar with.",
+            "Tell me about a time you had to defend your design decisions.",
+            "How do you approach working with stakeholders who don't understand UX?",
+            "Describe a time when you had to pivot your design approach mid-project.",
+            "Tell me about a situation where technical constraints limited your design options.",
+            "How do you handle situations where business goals conflict with user needs?",
+            "Describe a time when you successfully influenced a product decision through design.",
+            "Tell me about a project where you had to work with limited resources.",
+            "How do you approach learning about new user groups or industries?",
+            "Describe a time when you had to present your design to senior executives.",
+            "Tell me about a situation where you had to work with an existing design system.",
+            "How do you handle criticism of your design work?"
         ],
         "Role-specific": [
             "How do you measure the success of a design?",
             "Describe how you stay current with design trends and best practices.",
             "How do you balance aesthetics with usability?",
             "Explain your approach to responsive design.",
-            "How would you improve the user experience of our product?"
+            "How would you improve the user experience of our product?",
+            "What's your experience with design systems and component libraries?",
+            "How do you approach user onboarding and first-time user experiences?",
+            "Describe your experience with e-commerce or conversion-focused design.",
+            "How do you handle designing for different user personas and use cases?",
+            "What's your approach to creating design specifications and guidelines?",
+            "How do you collaborate with product managers and stakeholders?",
+            "Describe your experience with design workshops and facilitation.",
+            "How do you approach designing for international or multicultural audiences?",
+            "What's your experience with voice user interfaces or emerging technologies?",
+            "How do you handle design version control and collaboration?",
+            "Describe your approach to creating design presentations and storytelling.",
+            "How do you ensure your designs align with brand guidelines?",
+            "What's your experience with design leadership and mentoring?",
+            "How do you approach designing for different business models?",
+            "Describe your experience with design operations and process improvement."
         ]
     },
     "IT Support": {
@@ -292,21 +514,70 @@ JOB_FIELDS = {
             "Describe your experience with ticketing systems.",
             "What steps would you take to secure a workstation?",
             "How do you prioritize multiple support requests?",
-            "Explain how you would troubleshoot a slow computer."
+            "Explain how you would troubleshoot a slow computer.",
+            "What's your experience with network troubleshooting?",
+            "How do you approach mobile device support and management?",
+            "Describe your experience with Active Directory and user management.",
+            "How would you troubleshoot email connectivity issues?",
+            "What's your approach to software installation and deployment?",
+            "How do you handle printer and peripheral device issues?",
+            "Describe your experience with backup and recovery procedures.",
+            "How would you troubleshoot VPN connectivity problems?",
+            "What's your experience with cloud services support?",
+            "How do you approach virus and malware removal?",
+            "Describe your experience with remote desktop and support tools.",
+            "How would you handle a server outage or critical system failure?",
+            "What's your approach to password management and security?",
+            "How do you troubleshoot audio and video conferencing issues?",
+            "Describe your experience with software licensing and compliance.",
+            "How would you approach migrating user data to a new system?",
+            "What's your experience with mobile device management (MDM)?",
+            "How do you handle browser and web application issues?",
+            "Describe your approach to monitoring system performance and health."
         ],
         "Behavioral": [
             "Tell me about a time when you had to explain a technical issue to a non-technical user.",
             "Describe a situation where you went above and beyond for a user.",
             "How do you handle frustrated or angry users?",
             "Tell me about a time when you couldn't solve a technical problem immediately.",
-            "How do you stay patient when dealing with repetitive support issues?"
+            "How do you stay patient when dealing with repetitive support issues?",
+            "Describe a time when you had to work under pressure to resolve a critical issue.",
+            "Tell me about a situation where you had to learn a new technology quickly.",
+            "How do you handle multiple urgent requests at the same time?",
+            "Describe a time when you had to escalate an issue to a higher level.",
+            "Tell me about a situation where you prevented a major issue from occurring.",
+            "How do you approach working with users who resist technology changes?",
+            "Describe a time when you had to work with a difficult colleague or vendor.",
+            "Tell me about a situation where you improved a support process.",
+            "How do you handle situations where you don't know the answer immediately?",
+            "Describe a time when you had to work overtime to resolve an issue.",
+            "Tell me about a situation where you had to communicate bad news to users.",
+            "How do you approach building rapport with new users or departments?",
+            "Describe a time when you had to train someone on a new system.",
+            "Tell me about a situation where you had to work independently without supervision.",
+            "How do you maintain your composure during high-stress situations?"
         ],
         "Role-specific": [
             "What remote support tools are you familiar with?",
             "How do you document your troubleshooting steps?",
             "Describe your approach to user training and education.",
             "How do you keep up with new technologies and support techniques?",
-            "What's your experience with supporting remote workers?"
+            "What's your experience with supporting remote workers?",
+            "How do you approach preventive maintenance and system monitoring?",
+            "Describe your experience with help desk metrics and SLA management.",
+            "How do you handle escalation procedures and communication?",
+            "What's your approach to knowledge base creation and maintenance?",
+            "How do you ensure data security while providing support?",
+            "Describe your experience with asset management and inventory tracking.",
+            "How do you approach vendor relationships and support coordination?",
+            "What's your experience with change management and communication?",
+            "How do you handle emergency response and business continuity?",
+            "Describe your approach to user account provisioning and deprovisioning.",
+            "How do you ensure compliance with IT policies and procedures?",
+            "What's your experience with budget planning for IT support?",
+            "How do you approach cross-training and knowledge sharing?",
+            "Describe your experience with project work and implementations.",
+            "How do you measure and improve customer satisfaction in support?"
         ]
     },
     "Cybersecurity": {
@@ -316,28 +587,87 @@ JOB_FIELDS = {
             "How would you respond to a potential data breach?",
             "Describe common network vulnerabilities and how to mitigate them.",
             "What's your approach to vulnerability assessment?",
-            "Explain the importance of patch management."
+            "Explain the importance of patch management.",
+            "How do you approach security incident response?",
+            "What's your experience with penetration testing?",
+            "Describe the CIA triad and its importance in security.",
+            "How would you implement a zero-trust security model?",
+            "What's your approach to security monitoring and SIEM tools?",
+            "Explain the concept of threat modeling.",
+            "How do you approach cloud security and configuration?",
+            "What's your experience with identity and access management?",
+            "Describe your approach to network segmentation and firewalls.",
+            "How would you secure a remote workforce?",
+            "What's your experience with encryption and key management?",
+            "Explain the concept of security by design.",
+            "How do you approach mobile device security?",
+            "What's your experience with compliance frameworks (SOX, HIPAA, etc.)?",
+            "Describe your approach to security risk assessment.",
+            "How would you handle a ransomware attack?",
+            "What's your experience with security automation and orchestration?",
+            "Explain the concept of threat intelligence and its applications.",
+            "How do you approach secure software development practices?"
         ],
         "Behavioral": [
             "Tell me about a time when you identified a security risk before it became an issue.",
             "How do you balance security needs with user convenience?",
             "Describe a situation where you had to convince management to invest in security measures.",
             "How do you stay current with evolving security threats?",
-            "Tell me about a time when you had to respond to a security incident."
+            "Tell me about a time when you had to respond to a security incident.",
+            "Describe a situation where you had to work under pressure during a security crisis.",
+            "How do you approach educating non-technical staff about security?",
+            "Tell me about a time when you had to implement unpopular security policies.",
+            "Describe a situation where you discovered a security vulnerability.",
+            "How do you handle situations where security and business objectives conflict?",
+            "Tell me about a time you had to coordinate with law enforcement or external agencies.",
+            "Describe a situation where you had to learn about a new threat quickly.",
+            "How do you approach building security awareness across an organization?",
+            "Tell me about a time when you had to present security metrics to leadership.",
+            "Describe a situation where you had to work with a third-party security vendor.",
+            "How do you handle the stress of constant vigilance required in security?",
+            "Tell me about a time when you had to update security policies or procedures.",
+            "Describe a situation where you had to investigate a potential insider threat.",
+            "How do you approach collaboration with other IT teams on security matters?",
+            "Tell me about a time when you had to make a quick security decision."
         ],
         "Role-specific": [
             "What security tools and technologies are you experienced with?",
             "How would you implement a security awareness program?",
             "Describe your experience with compliance requirements (GDPR, HIPAA, etc.)",
             "What's your approach to security logging and monitoring?",
-            "How would you conduct a security audit?"
+            "How would you conduct a security audit?",
+            "Describe your experience with digital forensics and incident investigation.",
+            "How do you approach security architecture and design reviews?",
+            "What's your experience with business continuity and disaster recovery planning?",
+            "How do you handle security vendor evaluation and management?",
+            "Describe your approach to security metrics and reporting.",
+            "How would you develop and test an incident response plan?",
+            "What's your experience with security policy development and governance?",
+            "How do you approach threat hunting and proactive security measures?",
+            "Describe your experience with security training and certification programs.",
+            "How would you secure cloud infrastructure and services?",
+            "What's your approach to managing security across multiple locations?",
+            "How do you handle security aspects of mergers and acquisitions?",
+            "Describe your experience with security budget planning and justification.",
+            "How would you approach implementing new security technologies?",
+            "What's your experience with coordinating security across different business units?"
         ]
+    
     }
 }
 
 COMMON_QUESTIONS = {
     "Background": [
-        "Tell me more about yourself and why you're interested in this field."
+        "Tell me more about yourself and why you're interested in this field.",
+        "What interests you most about this role and our company?",
+        "Walk me through your career journey and key achievements.",
+        "What are your long-term career goals?",
+        "How did you become interested in this field?",
+        "What do you consider your greatest professional accomplishment?",
+        "Tell me about a challenge that shaped your career direction.",
+        "What motivates you in your work?",
+        "How do you stay current with industry trends and developments?",
+        "What unique perspective or experience do you bring to this role?"
     ]
 }
 
@@ -443,6 +773,207 @@ def transcribe_audio(audio_file):
     os.unlink(temp_audio_path)
     
     return transcript.strip()
+def extract_text_from_pdf(pdf_file):
+    """Extract text from PDF file"""
+    try:
+        pdf_reader = PyPDF2.PdfReader(pdf_file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() + "\n"
+        return text
+    except Exception as e:
+        st.error(f"Error reading PDF: {str(e)}")
+        return ""
+
+def extract_text_from_docx(docx_file):
+    """Extract text from DOCX file"""
+    try:
+        doc = docx.Document(docx_file)
+        text = ""
+        for paragraph in doc.paragraphs:
+            text += paragraph.text + "\n"
+        return text
+    except Exception as e:
+        st.error(f"Error reading DOCX: {str(e)}")
+        return ""
+
+def analyze_resume_with_ai(resume_text):
+    """Analyze resume using OpenAI to extract key information"""
+    prompt = f"""
+    Analyze the following resume and extract key information in JSON format:
+    
+    Resume Text:
+    {resume_text}
+    
+    Please extract and return a JSON object with the following structure:
+    {{
+        "name": "candidate name",
+        "email": "email address", 
+        "phone": "phone number",
+        "current_role": "current job title",
+        "experience_years": "estimated years of experience",
+        "skills": ["list", "of", "technical", "skills"],
+        "education": ["degree", "institution"],
+        "industries": ["list", "of", "industries", "worked", "in"],
+        "job_roles": ["list", "of", "previous", "job", "titles"],
+        "achievements": ["key", "achievements", "and", "accomplishments"],
+        "technologies": ["programming", "languages", "tools", "platforms"],
+        "certifications": ["professional", "certifications"],
+        "recommended_fields": ["suggested", "job", "fields", "based", "on", "experience"],
+        "strengths": ["identified", "strengths", "from", "resume"],
+        "areas_for_improvement": ["potential", "skill", "gaps", "or", "areas", "to", "develop"]
+    }}
+    
+    Only return the JSON object, no additional text.
+    """
+    
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
+        )
+        
+        analysis_text = response.choices[0].message.content.strip()
+        analysis_text = analysis_text.replace("```json", "").replace("```", "").strip()
+        
+        return json.loads(analysis_text)
+    except Exception as e:
+        st.error(f"Error analyzing resume: {str(e)}")
+        return {}
+
+def generate_personalized_questions(resume_analysis, target_field=None):
+    """Generate personalized interview questions based on resume analysis"""
+    if not target_field and resume_analysis.get("recommended_fields"):
+        target_field = resume_analysis["recommended_fields"][0]
+    
+    if not target_field:
+        target_field = "General"
+    
+    # Get base questions from the field
+    base_questions = []
+    if target_field in JOB_FIELDS:
+        for category, questions in JOB_FIELDS[target_field].items():
+            base_questions.extend([{"category": category, "question": q} for q in questions[:3]])
+    
+    # Generate personalized questions using AI
+    prompt = f"""
+    Based on the following resume analysis, generate 10 personalized interview questions for a {target_field} role:
+    
+    Resume Analysis:
+    - Current Role: {resume_analysis.get('current_role', 'N/A')}
+    - Experience: {resume_analysis.get('experience_years', 'N/A')} years
+    - Skills: {', '.join(resume_analysis.get('skills', []))}
+    - Technologies: {', '.join(resume_analysis.get('technologies', []))}
+    - Industries: {', '.join(resume_analysis.get('industries', []))}
+    - Achievements: {', '.join(resume_analysis.get('achievements', []))}
+    
+    Generate questions that:
+    1. Reference specific skills/experience from their resume
+    2. Are appropriate for their experience level
+    3. Focus on their demonstrated strengths
+    4. Address any gaps or areas for improvement
+    5. Are relevant to the {target_field} field
+    
+    Return as a JSON array of objects with "category" and "question" fields:
+    [
+        {{"category": "Experience-based", "question": "specific question"}},
+        ...
+    ]
+    """
+    
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo", 
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5
+        )
+        
+        questions_text = response.choices[0].message.content.strip()
+        questions_text = questions_text.replace("```json", "").replace("```", "").strip()
+        personalized_questions = json.loads(questions_text)
+        
+        # Combine with some base questions
+        all_questions = base_questions[:5] + personalized_questions[:10]
+        return all_questions
+        
+    except Exception as e:
+        st.error(f"Error generating personalized questions: {str(e)}")
+        return base_questions[:10]
+
+def generate_career_recommendations(resume_analysis):
+    """Generate career recommendations based on resume analysis"""
+    prompt = f"""
+    Based on the following resume analysis, provide career recommendations and insights:
+    
+    Resume Analysis:
+    - Current Role: {resume_analysis.get('current_role', 'N/A')}
+    - Experience: {resume_analysis.get('experience_years', 'N/A')} years
+    - Skills: {', '.join(resume_analysis.get('skills', []))}
+    - Technologies: {', '.join(resume_analysis.get('technologies', []))}
+    - Industries: {', '.join(resume_analysis.get('industries', []))}
+    - Strengths: {', '.join(resume_analysis.get('strengths', []))}
+    - Areas for Improvement: {', '.join(resume_analysis.get('areas_for_improvement', []))}
+    
+    Provide recommendations in JSON format:
+    {{
+        "suitable_roles": ["list of 5 specific job titles they'd be good for"],
+        "growth_opportunities": ["potential career advancement paths"],
+        "skill_recommendations": ["skills to develop for career growth"],
+        "industry_insights": ["relevant industry trends and opportunities"],
+        "salary_range": "estimated salary range for their experience level",
+        "next_steps": ["actionable steps to advance their career"],
+        "interview_focus_areas": ["areas to emphasize in interviews"]
+    }}
+    """
+    
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5
+        )
+        
+        recommendations_text = response.choices[0].message.content.strip()
+        recommendations_text = recommendations_text.replace("```json", "").replace("```", "").strip()
+        
+        return json.loads(recommendations_text)
+    except Exception as e:
+        st.error(f"Error generating career recommendations: {str(e)}")
+        return {}
+
+def chatbot_response(user_message, resume_analysis):
+    """Generate chatbot response based on user message and resume analysis"""
+    context = f"""
+    You are a career counselor and interview coach. You have access to the user's resume analysis:
+    
+    Resume Summary:
+    - Name: {resume_analysis.get('name', 'User')}
+    - Current Role: {resume_analysis.get('current_role', 'N/A')}
+    - Experience: {resume_analysis.get('experience_years', 'N/A')} years
+    - Skills: {', '.join(resume_analysis.get('skills', []))}
+    - Recommended Fields: {', '.join(resume_analysis.get('recommended_fields', []))}
+    - Strengths: {', '.join(resume_analysis.get('strengths', []))}
+    
+    Chat History:
+    {chr(10).join([f"{msg['role']}: {msg['content']}" for msg in st.session_state.chat_history[-5:]])}
+    
+    User Message: {user_message}
+    
+    Provide helpful, personalized career advice based on their background. Be conversational and supportive.
+    """
+    
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": context}],
+            temperature=0.7,
+            max_tokens=500
+        )
+        
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"I apologize, but I'm having trouble processing your request right now. Please try again later."
 
 # Enhanced answer feedback function that uses structured evaluation
 def get_answer_feedback(question, answer):
@@ -898,10 +1429,18 @@ div[data-testid="column"]:nth-of-type(3) .stButton {
     
     with center_btn_col:
         st.markdown("<div style='text-align: center; padding: 15px 0;'>", unsafe_allow_html=True)
+        
         if st.button("Start Your Interview Practice", key="start_welcome_button", use_container_width=True):
             st.session_state.setup_stage = "job_selection"
             st.rerun()
+        
+        # ADD THIS NEW BUTTON:
+        if st.button("📄 Resume Analysis & Career Coach", key="resume_chatbot_button", use_container_width=True):
+            st.session_state.setup_stage = "resume_chatbot"
+            st.rerun()
+            
         st.markdown("</div>", unsafe_allow_html=True)
+
     
     # Below is where you would add the actual authentication functionality once the buttons work
     # For example, you could set up a simple modal system or expand this to use a database
@@ -939,6 +1478,264 @@ elif st.session_state.setup_stage == "sign_up":
     if st.button("Back to Welcome"):
         st.session_state.setup_stage = "welcome_page"
         st.rerun()
+elif st.session_state.setup_stage == "resume_chatbot":
+    st.markdown("""
+    <style>
+    .stApp {
+        background-color: #121212;
+        color: white;
+    }
+    .chat-container {
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 10px;
+        border: 1px solid #333;
+        border-radius: 5px;
+        background-color: #1E1E1E;
+        margin-bottom: 10px;
+    }
+    .user-message {
+        background-color: #3498db;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 15px;
+        margin: 5px 0;
+        margin-left: 50px;
+        text-align: right;
+    }
+    .bot-message {
+        background-color: #2C2C2C;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 15px;
+        margin: 5px 0;
+        margin-right: 50px;
+    }
+    div[data-testid="stToolbar"] {
+        display: none;
+    }
+    div[data-testid="stDecoration"] {
+        display: none;
+    }
+    div[data-testid="stStatusWidget"] {
+        display: none;
+    }
+    #MainMenu {
+        display: none;
+    }
+    footer {
+        display: none;
+    }
+    header {
+        display: none;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div style="text-align: center;">
+        <h1 style="font-size: 48px; color: white;">Resume Analysis & Career Coach</h1>
+        <p style="font-size: 18px; color: #cccccc;">Upload your resume for personalized interview questions and career recommendations</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # File upload section
+    if not st.session_state.resume_text:
+        st.markdown("### 📄 Upload Your Resume")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            uploaded_file = st.file_uploader(
+                "Choose your resume file",
+                type=['pdf', 'docx', 'txt'],
+                help="Upload your resume in PDF, DOCX, or TXT format"
+            )
+            
+            if uploaded_file is not None:
+                # Extract text based on file type
+                file_type = uploaded_file.type
+                
+                with st.spinner("Processing your resume..."):
+                    if file_type == "application/pdf":
+                        resume_text = extract_text_from_pdf(uploaded_file)
+                    elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                        resume_text = extract_text_from_docx(uploaded_file)
+                    else:  # txt file
+                        resume_text = str(uploaded_file.read(), "utf-8")
+                    
+                    st.session_state.resume_text = resume_text
+                    
+                    # Analyze resume with AI
+                    st.session_state.resume_analysis = analyze_resume_with_ai(resume_text)
+                    
+                    # Generate initial recommendations
+                    st.session_state.career_recommendations = generate_career_recommendations(st.session_state.resume_analysis)
+                    
+                    st.success("Resume processed successfully!")
+                    st.rerun()
+        
+        with col2:
+            st.markdown("### Alternative Input")
+            if st.button("Paste Resume Text", type="secondary"):
+                st.session_state.manual_input = True
+        
+        # Manual text input option
+        if st.session_state.get("manual_input", False):
+            manual_text = st.text_area("Paste your resume text here:", height=200)
+            if st.button("Analyze Resume") and manual_text:
+                with st.spinner("Analyzing your resume..."):
+                    st.session_state.resume_text = manual_text
+                    st.session_state.resume_analysis = analyze_resume_with_ai(manual_text)
+                    st.session_state.career_recommendations = generate_career_recommendations(st.session_state.resume_analysis)
+                    st.success("Resume analyzed successfully!")
+                    st.rerun()
+    
+    # Resume analysis and chat interface
+    else:
+        # Display resume summary
+        if st.session_state.resume_analysis:
+            with st.expander("📋 Resume Summary", expanded=False):
+                analysis = st.session_state.resume_analysis
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**Name:** {analysis.get('name', 'Not specified')}")
+                    st.write(f"**Current Role:** {analysis.get('current_role', 'Not specified')}")
+                    st.write(f"**Experience:** {analysis.get('experience_years', 'Not specified')} years")
+                    st.write(f"**Skills:** {', '.join(analysis.get('skills', [])[:5])}")
+                
+                with col2:
+                    st.write(f"**Recommended Fields:** {', '.join(analysis.get('recommended_fields', []))}")
+                    st.write(f"**Technologies:** {', '.join(analysis.get('technologies', [])[:5])}")
+                    st.write(f"**Industries:** {', '.join(analysis.get('industries', []))}")
+        
+        # Career recommendations
+        if st.session_state.career_recommendations:
+            with st.expander("🎯 Career Recommendations", expanded=False):
+                recs = st.session_state.career_recommendations
+                
+                st.markdown("**Suitable Roles:**")
+                for role in recs.get('suitable_roles', []):
+                    st.write(f"• {role}")
+                
+                st.markdown("**Skills to Develop:**")
+                for skill in recs.get('skill_recommendations', []):
+                    st.write(f"• {skill}")
+                
+                st.markdown("**Next Steps:**")
+                for step in recs.get('next_steps', []):
+                    st.write(f"• {step}")
+        
+        # Quick action buttons
+        st.markdown("### 🚀 Quick Actions")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            if st.button("Generate Interview Questions"):
+                if st.session_state.resume_analysis.get('recommended_fields'):
+                    target_field = st.session_state.resume_analysis['recommended_fields'][0]
+                    st.session_state.personalized_questions = generate_personalized_questions(
+                        st.session_state.resume_analysis, target_field
+                    )
+                    st.success(f"Generated {len(st.session_state.personalized_questions)} personalized questions!")
+        
+        with col2:
+            if st.button("Start Practice Interview"):
+                if st.session_state.personalized_questions:
+                    st.session_state.questions = st.session_state.personalized_questions
+                    st.session_state.selected_job_field = st.session_state.resume_analysis.get('recommended_fields', ['General'])[0]
+                    st.session_state.current_question_idx = 0
+                    st.session_state.answers = [""] * len(st.session_state.questions)
+                    st.session_state.feedbacks = [""] * len(st.session_state.questions)
+                    st.session_state.setup_stage = "interview"
+                    st.session_state.interview_stage = "introduction"
+                    st.rerun()
+                else:
+                    st.error("Please generate interview questions first!")
+        
+        with col3:
+            if st.button("Salary Insights"):
+                if st.session_state.career_recommendations.get('salary_range'):
+                    st.info(f"Estimated salary range: {st.session_state.career_recommendations['salary_range']}")
+                else:
+                    st.info("Salary information not available")
+        
+        with col4:
+            if st.button("Upload New Resume"):
+                # Reset all resume-related session state
+                st.session_state.resume_text = ""
+                st.session_state.resume_analysis = {}
+                st.session_state.career_recommendations = []
+                st.session_state.chat_history = []
+                st.session_state.personalized_questions = []
+                st.rerun()
+        
+        # Display personalized questions if generated
+        if st.session_state.personalized_questions:
+            with st.expander("🎯 Your Personalized Interview Questions", expanded=False):
+                for i, q_data in enumerate(st.session_state.personalized_questions, 1):
+                    st.write(f"**{i}. ({q_data['category']})** {q_data['question']}")
+        
+        # Chat interface
+        st.markdown("### 💬 Career Coach Chat")
+        st.markdown("Ask me anything about your career, interview preparation, or professional development!")
+        
+        # Display chat history
+        if st.session_state.chat_history:
+            st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+            for message in st.session_state.chat_history:
+                if message['role'] == 'user':
+                    st.markdown(f'<div class="user-message">{message["content"]}</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<div class="bot-message">{message["content"]}</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Chat input
+        user_input = st.text_input("Type your message:", placeholder="e.g., How can I improve my chances for a data analyst role?")
+        
+        col1, col2 = st.columns([1, 5])
+        with col1:
+            if st.button("Send") and user_input:
+                # Add user message to history
+                st.session_state.chat_history.append({"role": "user", "content": user_input})
+                
+                # Generate bot response
+                bot_response = chatbot_response(user_input, st.session_state.resume_analysis)
+                st.session_state.chat_history.append({"role": "bot", "content": bot_response})
+                
+                st.rerun()
+        
+        # Suggested questions for first-time users
+        if not st.session_state.chat_history:
+            st.markdown("**💡 Try asking:**")
+            suggestions = [
+                "What roles am I best suited for based on my experience?",
+                "How can I improve my resume for my target role?",
+                "What skills should I focus on developing?",
+                "What salary range should I expect?",
+                "How can I prepare for interviews in my field?"
+            ]
+            
+            for suggestion in suggestions:
+                if st.button(suggestion, key=f"suggestion_{hash(suggestion)}"):
+                    st.session_state.chat_history.append({"role": "user", "content": suggestion})
+                    bot_response = chatbot_response(suggestion, st.session_state.resume_analysis)
+                    st.session_state.chat_history.append({"role": "bot", "content": bot_response})
+                    st.rerun()
+    
+    # Navigation buttons
+    st.markdown("---")
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("← Back to Welcome"):
+            st.session_state.setup_stage = "welcome_page"
+            st.rerun()
+    
+    with col2:
+        if st.button("Continue to Interview Setup →"):
+            st.session_state.setup_stage = "job_selection"
+            st.rerun()
 # Job selection screen
 elif st.session_state.setup_stage == "job_selection" and not st.session_state.questions:
     st.markdown("""
@@ -1215,7 +2012,7 @@ elif st.session_state.interview_complete:
                 # Firebase upload succeeded
                 dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={output_path}"
                 
-                st.success("Your interview analysis is ready to view!")
+                
                 st.markdown(f"""
                 ## Career Dashboard
                 
