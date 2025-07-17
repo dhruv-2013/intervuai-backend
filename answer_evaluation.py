@@ -243,8 +243,7 @@ def save_evaluation_data(evaluations, interviewee_name):
             
             # Clean up temp file
             os.remove(file_path)
-            
-            st.success("✅ Uploaded to Firebase successfully")
+
             
             # Generate dashboard URL with Firebase data link
             dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={public_url}"
@@ -282,7 +281,7 @@ def save_evaluation_data(evaluations, interviewee_name):
                     raise ValueError("URL too long for direct data embedding")
                 
                 st.success("✅ Created direct data link")
-                st.success(f"🌐 View your Career Dashboard: [Open Dashboard]({dashboard_url})")
+                st.success(f"({dashboard_url})")
                 
                 # Also provide a download button for the full data
                 json_str = json.dumps(career_profile, indent=2)
