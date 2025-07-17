@@ -247,7 +247,7 @@ def save_evaluation_data(evaluations, interviewee_name):
             
             # Generate dashboard URL with Firebase data link
             dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={public_url}"
-            st.success(f"({dashboard_url})")
+            #st.success(f"({dashboard_url})")
             
             return public_url
             
