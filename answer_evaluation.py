@@ -527,8 +527,8 @@ if __name__ == "__main__":
     
     # Upload to Firebase
     public_url = save_evaluation_data([result], "Test User")
-    print(f"\n✅ Uploaded to Firebase:\n{public_url}")
+    #print(f"\n✅ Uploaded to Firebase:\n{public_url}")
     
     # Generate the React dashboard URL
     dashboard_url = f"https://intervuai-dashboard.vercel.app/?data={public_url}"
-    print(f"\n🌐 View your Career Dashboard:\n{dashboard_url}")
+    #print(f"\n🌐 View your Career Dashboard:\n{dashboard_url}")
