@@ -274,7 +274,8 @@ def run_career_coach():
             uploaded_file = st.file_uploader(
                 "Choose your resume file",
                 type=['pdf', 'docx', 'txt'],
-                help="Upload your resume in PDF, DOCX, or TXT format"
+                help="Upload your resume in PDF, DOCX, or TXT format",
+                key="resume_uploader"
             )
             
             if uploaded_file is not None:
@@ -331,7 +332,8 @@ def run_career_coach():
                     st.success("Resume analyzed successfully!")
                     st.rerun()
     
-    else:
+    # Show interface after resume is uploaded (even if analysis fails)
+    elif st.session_state.cc_resume_text:
         # Debug: Show what we have in session state
         st.write("**Debug Info:**")
         st.write(f"Resume text length: {len(st.session_state.cc_resume_text)}")
