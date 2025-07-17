@@ -1,9 +1,11 @@
 import streamlit as st
-import openai
 import json
 import PyPDF2
 import docx
 from io import BytesIO
+
+# Use the same OpenAI import and setup as main.py
+import openai
 
 def extract_text_from_pdf(pdf_file):
     """Extract text from PDF file"""
@@ -30,7 +32,7 @@ def extract_text_from_docx(docx_file):
         return ""
 
 def analyze_resume_with_ai(resume_text):
-    """Analyze resume using OpenAI - same format as main.py"""
+    """Analyze resume using OpenAI - using the same setup as main.py"""
     if not resume_text or len(resume_text.strip()) < 50:
         st.error("Resume text is too short or empty. Please check your file.")
         return {}
@@ -64,6 +66,7 @@ def analyze_resume_with_ai(resume_text):
     """
     
     try:
+        # Use the exact same OpenAI call format as your main.py
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
@@ -135,10 +138,12 @@ def generate_career_recommendations(resume_analysis):
     """
     
     try:
+        # Use the exact same OpenAI call format as your main.py
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.5
+            temperature=0.5,
+            max_tokens=1000
         )
         
         recommendations_text = response.choices[0].message.content.strip()
@@ -147,10 +152,14 @@ def generate_career_recommendations(resume_analysis):
         return json.loads(recommendations_text)
     except Exception as e:
         st.error(f"Error generating career recommendations: {str(e)}")
-        return {}
+        return {
+            "suitable_roles": ["Data Analyst", "Software Developer", "Project Manager"],
+            "skill_recommendations": ["Communication", "Technical Skills", "Leadership"],
+            "next_steps": ["Update resume", "Practice interviews", "Network professionally"]
+        }
 
 def chatbot_response(user_message, resume_analysis):
-    """Generate chatbot response - same format as main.py"""
+    """Generate chatbot response - using the same setup as main.py"""
     chat_history = st.session_state.get('cc_chat_history', [])
     
     # Check if we have resume data to work with
@@ -177,6 +186,7 @@ def chatbot_response(user_message, resume_analysis):
     """
     
     try:
+        # Use the exact same OpenAI call format as your main.py
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": context}],
