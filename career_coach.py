@@ -351,6 +351,19 @@ def run_career_coach():
         if not analysis_valid:
             st.warning("⚠️ Resume analysis incomplete. Let me try to re-analyze your resume.")
             
+            # Add OpenAI API test
+            st.markdown("**🔍 API Connection Test:**")
+            if st.button("Test OpenAI Connection"):
+                try:
+                    test_response = openai.ChatCompletion.create(
+                        model="gpt-3.5-turbo",
+                        messages=[{"role": "user", "content": "Hello, please respond with 'API working'"}],
+                        max_tokens=10
+                    )
+                    st.success(f"✅ OpenAI API is working! Response: {test_response.choices[0].message.content}")
+                except Exception as e:
+                    st.error(f"❌ OpenAI API Error: {str(e)}")
+            
             if st.button("🔄 Re-analyze Resume"):
                 with st.spinner("Re-analyzing your resume..."):
                     st.session_state.cc_resume_analysis = analyze_resume_with_ai(st.session_state.cc_resume_text)
