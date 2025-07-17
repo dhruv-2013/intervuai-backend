@@ -31,11 +31,15 @@ def extract_text_from_docx(docx_file):
 
 def analyze_resume_with_ai(resume_text):
     """Analyze resume using OpenAI - same format as main.py"""
+    if not resume_text or len(resume_text.strip()) < 50:
+        st.error("Resume text is too short or empty. Please check your file.")
+        return {}
+    
     prompt = f"""
     Analyze the following resume and extract key information in JSON format:
     
     Resume Text:
-    {resume_text}
+    {resume_text[:2000]}  # Limit text to avoid token limits
     
     Please extract and return a JSON object with the following structure:
     {{
@@ -63,16 +67,46 @@ def analyze_resume_with_ai(resume_text):
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
+            temperature=0.3,
+            max_tokens=1000
         )
         
         analysis_text = response.choices[0].message.content.strip()
         analysis_text = analysis_text.replace("```json", "").replace("```", "").strip()
         
-        return json.loads(analysis_text)
+        # Try to parse JSON
+        parsed_analysis = json.loads(analysis_text)
+        
+        # Validate that we got meaningful data
+        if not parsed_analysis.get('name') and not parsed_analysis.get('current_role'):
+            st.warning("Resume analysis completed but some information may be missing. You can still use the career coach.")
+        
+        return parsed_analysis
+        
+    except json.JSONDecodeError as e:
+        st.error(f"Error parsing AI response: {str(e)}")
+        # Return basic structure so the app doesn't break
+        return {
+            "name": "User",
+            "current_role": "Not specified",
+            "experience_years": "Not specified",
+            "skills": ["Communication", "Problem Solving"],
+            "recommended_fields": ["General"],
+            "strengths": ["Uploaded resume successfully"],
+            "areas_for_improvement": ["Resume analysis had technical issues"]
+        }
     except Exception as e:
         st.error(f"Error analyzing resume: {str(e)}")
-        return {}
+        # Return basic structure so the app doesn't break
+        return {
+            "name": "User", 
+            "current_role": "Not specified",
+            "experience_years": "Not specified",
+            "skills": ["Communication", "Problem Solving"],
+            "recommended_fields": ["General"],
+            "strengths": ["Uploaded resume successfully"],
+            "areas_for_improvement": ["Resume analysis had technical issues"]
+        }
 
 def generate_career_recommendations(resume_analysis):
     """Generate career recommendations based on resume analysis"""
@@ -247,19 +281,40 @@ def run_career_coach():
                 file_type = uploaded_file.type
                 
                 with st.spinner("Processing your resume..."):
-                    if file_type == "application/pdf":
-                        resume_text = extract_text_from_pdf(uploaded_file)
-                    elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                        resume_text = extract_text_from_docx(uploaded_file)
-                    else:  # txt file
-                        resume_text = str(uploaded_file.read(), "utf-8")
-                    
-                    st.session_state.cc_resume_text = resume_text
-                    st.session_state.cc_resume_analysis = analyze_resume_with_ai(resume_text)
-                    st.session_state.cc_career_recommendations = generate_career_recommendations(st.session_state.cc_resume_analysis)
-                    
-                    st.success("Resume processed successfully!")
-                    st.rerun()
+                    try:
+                        if file_type == "application/pdf":
+                            resume_text = extract_text_from_pdf(uploaded_file)
+                        elif file_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                            resume_text = extract_text_from_docx(uploaded_file)
+                        else:  # txt file
+                            resume_text = str(uploaded_file.read(), "utf-8")
+                        
+                        # Debug: Show first 200 characters of extracted text
+                        if resume_text:
+                            st.info(f"✅ Extracted {len(resume_text)} characters from your resume")
+                            with st.expander("Preview extracted text (first 200 chars)", expanded=False):
+                                st.text(resume_text[:200] + "..." if len(resume_text) > 200 else resume_text)
+                        else:
+                            st.error("❌ No text could be extracted from your file. Please try a different format.")
+                            return
+                        
+                        st.session_state.cc_resume_text = resume_text
+                        
+                        # Analyze resume with AI
+                        with st.spinner("Analyzing resume with AI..."):
+                            st.session_state.cc_resume_analysis = analyze_resume_with_ai(resume_text)
+                        
+                        # Generate initial recommendations if analysis was successful
+                        if st.session_state.cc_resume_analysis.get('name'):
+                            with st.spinner("Generating career recommendations..."):
+                                st.session_state.cc_career_recommendations = generate_career_recommendations(st.session_state.cc_resume_analysis)
+                        
+                        st.success("✅ Resume processed successfully!")
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"Error processing file: {str(e)}")
+                        return
         
         with col2:
             st.markdown("### Alternative Input")
@@ -277,11 +332,55 @@ def run_career_coach():
                     st.rerun()
     
     else:
-        # Only show interface if resume is uploaded and analyzed
-        if not st.session_state.cc_resume_analysis:
-            st.warning("⚠️ Please upload and analyze your resume first to access personalized career coaching features.")
+        # Debug: Show what we have in session state
+        st.write("**Debug Info:**")
+        st.write(f"Resume text length: {len(st.session_state.cc_resume_text)}")
+        st.write(f"Resume analysis keys: {list(st.session_state.cc_resume_analysis.keys()) if st.session_state.cc_resume_analysis else 'None'}")
+        st.write(f"Analysis content: {st.session_state.cc_resume_analysis}")
+        
+        # Check if we actually have meaningful analysis data
+        analysis_valid = (
+            st.session_state.cc_resume_analysis and 
+            (st.session_state.cc_resume_analysis.get('name') or 
+             st.session_state.cc_resume_analysis.get('current_role') or
+             st.session_state.cc_resume_analysis.get('skills'))
+        )
+        
+        if not analysis_valid:
+            st.warning("⚠️ Resume analysis incomplete. Let me try to re-analyze your resume.")
+            
+            if st.button("🔄 Re-analyze Resume"):
+                with st.spinner("Re-analyzing your resume..."):
+                    st.session_state.cc_resume_analysis = analyze_resume_with_ai(st.session_state.cc_resume_text)
+                    if st.session_state.cc_resume_analysis:
+                        st.session_state.cc_career_recommendations = generate_career_recommendations(st.session_state.cc_resume_analysis)
+                    st.rerun()
+            
+            # Show manual override option
+            st.markdown("### Manual Information Entry")
+            st.markdown("If the AI analysis isn't working, you can enter your information manually:")
+            
+            with st.form("manual_info"):
+                name = st.text_input("Your Name")
+                current_role = st.text_input("Current Job Title")
+                experience_years = st.text_input("Years of Experience")
+                skills = st.text_area("Your Skills (comma-separated)")
+                
+                if st.form_submit_button("Save Information"):
+                    st.session_state.cc_resume_analysis = {
+                        "name": name,
+                        "current_role": current_role,
+                        "experience_years": experience_years,
+                        "skills": [s.strip() for s in skills.split(",") if s.strip()],
+                        "recommended_fields": ["General"],
+                        "strengths": ["Manual entry completed"],
+                        "areas_for_improvement": []
+                    }
+                    st.success("Information saved! You can now use the career coach.")
+                    st.rerun()
             return
             
+        # If we get here, analysis is valid - show the full interface
         # Display resume summary
         with st.expander("📋 Resume Summary", expanded=False):
             analysis = st.session_state.cc_resume_analysis
