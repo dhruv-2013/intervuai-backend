@@ -362,24 +362,35 @@ def run_career_coach():
             st.warning("⚠️ Resume analysis incomplete. Let me try to re-analyze your resume.")
             
             # Add OpenAI API test
-            st.markdown("**🔍 API Connection Test:**")
-            if st.button("Test OpenAI Connection"):
-                try:
-                    test_response = openai.ChatCompletion.create(
-                        model="gpt-3.5-turbo",
-                        messages=[{"role": "user", "content": "Hello, please respond with 'API working'"}],
-                        max_tokens=10
-                    )
-                    st.success(f"✅ OpenAI API is working! Response: {test_response.choices[0].message.content}")
-                except Exception as e:
-                    st.error(f"❌ OpenAI API Error: {str(e)}")
+            st.markdown("**🔍 OpenAI Connection Test:**")
+            col1, col2 = st.columns(2)
             
-            if st.button("🔄 Re-analyze Resume"):
-                with st.spinner("Re-analyzing your resume..."):
-                    st.session_state.cc_resume_analysis = analyze_resume_with_ai(st.session_state.cc_resume_text)
-                    if st.session_state.cc_resume_analysis:
-                        st.session_state.cc_career_recommendations = generate_career_recommendations(st.session_state.cc_resume_analysis)
-                    st.rerun()
+            with col1:
+                if st.button("Test OpenAI Connection"):
+                    try:
+                        st.write("Testing OpenAI connection...")
+                        test_response = openai.ChatCompletion.create(
+                            model="gpt-3.5-turbo",
+                            messages=[{"role": "user", "content": "Hello, please respond with 'API working'"}],
+                            max_tokens=10
+                        )
+                        st.success(f"✅ OpenAI API is working! Response: {test_response.choices[0].message.content}")
+                    except Exception as e:
+                        st.error(f"❌ OpenAI API Error: {str(e)}")
+                        st.write(f"OpenAI API key set: {bool(openai.api_key)}")
+                        st.write(f"API key starts with: {str(openai.api_key)[:10] if openai.api_key else 'None'}...")
+            
+            with col2:
+                if st.button("🔄 Re-analyze Resume"):
+                    with st.spinner("Re-analyzing your resume..."):
+                        # Show the first part of resume text being analyzed
+                        st.write("Analyzing resume text (first 200 chars):")
+                        st.text(st.session_state.cc_resume_text[:200])
+                        
+                        st.session_state.cc_resume_analysis = analyze_resume_with_ai(st.session_state.cc_resume_text)
+                        if st.session_state.cc_resume_analysis:
+                            st.session_state.cc_career_recommendations = generate_career_recommendations(st.session_state.cc_resume_analysis)
+                        st.rerun()
             
             # Show manual override option
             st.markdown("### Manual Information Entry")
