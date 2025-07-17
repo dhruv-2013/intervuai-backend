@@ -30,7 +30,7 @@ def extract_text_from_docx(docx_file):
         return ""
 
 def analyze_resume_with_ai(resume_text):
-    """Analyze resume using OpenAI to extract key information"""
+    """Analyze resume using OpenAI - same format as main.py"""
     prompt = f"""
     Analyze the following resume and extract key information in JSON format:
     
@@ -116,8 +116,7 @@ def generate_career_recommendations(resume_analysis):
         return {}
 
 def chatbot_response(user_message, resume_analysis):
-    """Generate chatbot response based on user message and resume analysis"""
-    # Get chat history safely
+    """Generate chatbot response - same format as main.py"""
     chat_history = st.session_state.get('cc_chat_history', [])
     
     context = f"""
@@ -153,7 +152,7 @@ def chatbot_response(user_message, resume_analysis):
 
 def run_career_coach():
     """Main function to run the career coach interface"""
-    # Apply dark theme styling
+    # Dark theme styling
     st.markdown("""
     <style>
     .stApp {
@@ -214,7 +213,7 @@ def run_career_coach():
     </div>
     """, unsafe_allow_html=True)
     
-    # Initialize session state for career coach with safe defaults
+    # Initialize session state with cc_ prefix to avoid conflicts
     if "cc_resume_text" not in st.session_state:
         st.session_state.cc_resume_text = ""
     if "cc_resume_analysis" not in st.session_state:
@@ -240,7 +239,6 @@ def run_career_coach():
             )
             
             if uploaded_file is not None:
-                # Extract text based on file type
                 file_type = uploaded_file.type
                 
                 with st.spinner("Processing your resume..."):
@@ -252,11 +250,7 @@ def run_career_coach():
                         resume_text = str(uploaded_file.read(), "utf-8")
                     
                     st.session_state.cc_resume_text = resume_text
-                    
-                    # Analyze resume with AI
                     st.session_state.cc_resume_analysis = analyze_resume_with_ai(resume_text)
-                    
-                    # Generate initial recommendations
                     st.session_state.cc_career_recommendations = generate_career_recommendations(st.session_state.cc_resume_analysis)
                     
                     st.success("Resume processed successfully!")
@@ -267,7 +261,6 @@ def run_career_coach():
             if st.button("Paste Resume Text", type="secondary"):
                 st.session_state.cc_manual_input = True
         
-        # Manual text input option
         if st.session_state.cc_manual_input:
             manual_text = st.text_area("Paste your resume text here:", height=200)
             if st.button("Analyze Resume") and manual_text:
@@ -278,7 +271,6 @@ def run_career_coach():
                     st.success("Resume analyzed successfully!")
                     st.rerun()
     
-    # Resume analysis and chat interface
     else:
         # Display resume summary
         if st.session_state.cc_resume_analysis:
@@ -343,7 +335,6 @@ def run_career_coach():
         
         with col4:
             if st.button("Upload New Resume"):
-                # Reset all resume-related session state
                 st.session_state.cc_resume_text = ""
                 st.session_state.cc_resume_analysis = {}
                 st.session_state.cc_career_recommendations = []
@@ -370,16 +361,12 @@ def run_career_coach():
         col1, col2 = st.columns([1, 5])
         with col1:
             if st.button("Send") and user_input:
-                # Add user message to history
                 st.session_state.cc_chat_history.append({"role": "user", "content": user_input})
-                
-                # Generate bot response
                 bot_response = chatbot_response(user_input, st.session_state.cc_resume_analysis)
                 st.session_state.cc_chat_history.append({"role": "bot", "content": bot_response})
-                
                 st.rerun()
         
-        # Suggested questions for first-time users
+        # Suggested questions
         if not st.session_state.cc_chat_history:
             st.markdown("**💡 Try asking:**")
             suggestions = [
@@ -396,5 +383,3 @@ def run_career_coach():
                     bot_response = chatbot_response(suggestion, st.session_state.cc_resume_analysis)
                     st.session_state.cc_chat_history.append({"role": "bot", "content": bot_response})
                     st.rerun()
-    
-    return st.session_state.cc_resume_analysis, st.session_state.cc_career_recommendations
