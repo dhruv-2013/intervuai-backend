@@ -43,6 +43,8 @@ def make_openai_request(data, max_retries=3):
     
     st.error("Max retries reached. Please try again in a few minutes.")
     return None
+
+def extract_text_from_pdf(pdf_file):
     """Extract text from PDF file"""
     try:
         pdf_reader = PyPDF2.PdfReader(pdf_file)
