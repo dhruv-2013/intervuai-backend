@@ -106,8 +106,6 @@ if "personalized_questions" not in st.session_state:
     st.session_state.personalized_questions = []
 if "career_recommendations" not in st.session_state:
     st.session_state.career_recommendations = []
-if "manual_input" not in st.session_state:
-    st.session_state.manual_input = False
 
 @st.cache_resource
 def load_whisper_model():
@@ -1445,6 +1443,22 @@ div[data-testid="column"]:nth-of-type(3) .stButton {
     
     # Below is where you would add the actual authentication functionality once the buttons work
     # For example, you could set up a simple modal system or expand this to use a database
+elif st.session_state.setup_stage == "resume_chatbot":
+    career_coach.run_career_coach()
+    
+    # Navigation buttons
+    st.markdown("---")
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        if st.button("← Back to Welcome"):
+            st.session_state.setup_stage = "welcome_page"
+            st.rerun()
+    
+    with col2:
+        if st.button("Continue to Interview Setup →"):
+            st.session_state.setup_stage = "job_selection"
+            st.rerun()
+            
 elif st.session_state.setup_stage == "sign_in":
     st.title("🔐 Sign In")
     email = st.text_input("Email")
