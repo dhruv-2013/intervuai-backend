@@ -1,9 +1,9 @@
 import streamlit as st
-import openai
 import json
 import PyPDF2
 import docx
 from io import BytesIO
+import requests
 
 def extract_text_from_pdf(pdf_file):
     """Extract text from PDF file"""
@@ -60,41 +60,41 @@ def analyze_resume_with_ai(resume_text):
     """
     
     try:
-        # Use the exact same approach as answer_evaluation.py
-        response = openai.ChatCompletion.create(
-            model="gpt-4-turbo",
-            messages=[
+        # Use direct HTTP request to avoid OpenAI library version conflicts
+        headers = {
+            "Authorization": f"Bearer {st.secrets['OPENAI_API_KEY']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
                 {"role": "system", "content": "You are an expert resume analyzer providing structured data."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=1000,
-            temperature=0.3,
+            "max_tokens": 1000,
+            "temperature": 0.3
+        }
+        
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
         )
         
-        # Parse the JSON response the same way as answer_evaluation.py
-        evaluation_data = json.loads(response["choices"][0]["message"]["content"])
-        
-        return evaluation_data
+        if response.status_code == 200:
+            result = response.json()
+            analysis_text = result["choices"][0]["message"]["content"].strip()
+            analysis_text = analysis_text.replace("```json", "").replace("```", "").strip()
+            return json.loads(analysis_text)
+        else:
+            st.error(f"OpenAI API error: {response.status_code}")
+            return {}
+            
     except Exception as e:
         st.error(f"Error analyzing resume: {str(e)}")
-        # Return a basic structure if there's an error (same pattern as answer_evaluation.py)
-        return {
-            "name": "Error extracting name",
-            "email": "Error extracting email",
-            "phone": "Error extracting phone",
-            "current_role": "Error extracting role",
-            "experience_years": "Unknown",
-            "skills": ["Unable to extract skills due to error"],
-            "education": ["Unable to extract education due to error"],
-            "industries": ["Unable to extract industries due to error"],
-            "job_roles": ["Unable to extract job roles due to error"],
-            "achievements": ["Unable to extract achievements due to error"],
-            "technologies": ["Unable to extract technologies due to error"],
-            "certifications": ["Unable to extract certifications due to error"],
-            "recommended_fields": ["General"],
-            "strengths": ["Unable to analyze strengths due to error"],
-            "areas_for_improvement": ["Unable to analyze areas for improvement due to error"]
-        }
+        return {}
 
 def generate_career_recommendations(resume_analysis):
     """Generate career recommendations based on resume analysis"""
@@ -123,21 +123,38 @@ def generate_career_recommendations(resume_analysis):
     """
     
     try:
-        # Use the exact same approach as answer_evaluation.py
-        response = openai.ChatCompletion.create(
-            model="gpt-4-turbo",
-            messages=[
+        # Use direct HTTP request to avoid OpenAI library version conflicts
+        headers = {
+            "Authorization": f"Bearer {st.secrets['OPENAI_API_KEY']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
                 {"role": "system", "content": "You are an expert career counselor providing structured recommendations."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=1000,
-            temperature=0.5,
+            "max_tokens": 1000,
+            "temperature": 0.5
+        }
+        
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
         )
         
-        # Parse the JSON response the same way as answer_evaluation.py
-        recommendations_data = json.loads(response["choices"][0]["message"]["content"])
-        
-        return recommendations_data
+        if response.status_code == 200:
+            result = response.json()
+            recommendations_text = result["choices"][0]["message"]["content"].strip()
+            recommendations_text = recommendations_text.replace("```json", "").replace("```", "").strip()
+            return json.loads(recommendations_text)
+        else:
+            st.error(f"OpenAI API error: {response.status_code}")
+            return {}
+            
     except Exception as e:
         st.error(f"Error generating career recommendations: {str(e)}")
         return {}
@@ -164,18 +181,35 @@ def chatbot_response(user_message, resume_analysis):
     """
     
     try:
-        # Use the exact same approach as answer_evaluation.py
-        response = openai.ChatCompletion.create(
-            model="gpt-4-turbo",
-            messages=[
+        # Use direct HTTP request to avoid OpenAI library version conflicts
+        headers = {
+            "Authorization": f"Bearer {st.secrets['OPENAI_API_KEY']}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
                 {"role": "system", "content": "You are an expert interview coach providing conversational career advice."},
                 {"role": "user", "content": context}
             ],
-            max_tokens=500,
-            temperature=0.7,
+            "max_tokens": 500,
+            "temperature": 0.7
+        }
+        
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=30
         )
         
-        return response["choices"][0]["message"]["content"].strip()
+        if response.status_code == 200:
+            result = response.json()
+            return result["choices"][0]["message"]["content"].strip()
+        else:
+            return f"I apologize, but I'm having trouble processing your request right now. API error: {response.status_code}"
+            
     except Exception as e:
         return f"I apologize, but I'm having trouble processing your request right now. Please try again later."
 
