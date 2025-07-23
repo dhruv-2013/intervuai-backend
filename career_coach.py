@@ -26,7 +26,7 @@ def make_openai_request(data, max_retries=3):
                 return response.json()
             elif response.status_code == 429:
                 # Rate limit hit, wait and retry
-                wait_time = (attempt + 1) * 2  # 2, 4, 6 seconds
+                wait_time = 2 ** (attempt + 1)  # 2, 4, 6 seconds
                 st.info(f"Rate limit reached. Waiting {wait_time} seconds before retry...")
                 time.sleep(wait_time)
                 continue
