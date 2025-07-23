@@ -1,5 +1,5 @@
 import streamlit as st
-from openai import OpenAI
+import openai
 import json
 import PyPDF2
 import docx
@@ -60,9 +60,8 @@ def analyze_resume_with_ai(resume_text):
     """
     
     try:
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        
-        response = client.chat.completions.create(
+        # Use the same API style as main.py (older OpenAI API)
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
@@ -103,9 +102,8 @@ def generate_career_recommendations(resume_analysis):
     """
     
     try:
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        
-        response = client.chat.completions.create(
+        # Use the same API style as main.py (older OpenAI API)
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.5
@@ -141,9 +139,8 @@ def chatbot_response(user_message, resume_analysis):
     """
     
     try:
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        
-        response = client.chat.completions.create(
+        # Use the same API style as main.py (older OpenAI API)
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": context}],
             temperature=0.7,
