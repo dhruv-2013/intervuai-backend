@@ -32,8 +32,7 @@ st.set_page_config(
 )
 
 # Initialize OpenAI API key
-# Initialize OpenAI client
-client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # Initialize TTS and Firebase credentials with safer error handling
 tts_client = None
@@ -828,7 +827,7 @@ def analyze_resume_with_ai(resume_text):
     """
     
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
@@ -883,7 +882,7 @@ def generate_personalized_questions(resume_analysis, target_field=None):
     """
     
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo", 
             messages=[{"role": "user", "content": prompt}],
             temperature=0.5
@@ -928,7 +927,7 @@ def generate_career_recommendations(resume_analysis):
     """
     
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.5
@@ -964,7 +963,7 @@ def chatbot_response(user_message, resume_analysis):
     """
     
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": context}],
             temperature=0.7,
@@ -1459,7 +1458,7 @@ elif st.session_state.setup_stage == "resume_chatbot":
         if st.button("Continue to Interview Setup →"):
             st.session_state.setup_stage = "job_selection"
             st.rerun()
-
+            
 elif st.session_state.setup_stage == "sign_in":
     st.title("🔐 Sign In")
     email = st.text_input("Email")
