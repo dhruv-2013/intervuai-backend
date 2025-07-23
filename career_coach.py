@@ -60,7 +60,11 @@ def analyze_resume_with_ai(resume_text):
     """
     
     try:
-        response = openai.ChatCompletion.create(
+        # Updated for newer OpenAI library versions
+        from openai import OpenAI
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
@@ -71,8 +75,21 @@ def analyze_resume_with_ai(resume_text):
         
         return json.loads(analysis_text)
     except Exception as e:
-        st.error(f"Error analyzing resume: {str(e)}")
-        return {}
+        # Fallback to older API style if new one fails
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3
+            )
+            
+            analysis_text = response.choices[0].message.content.strip()
+            analysis_text = analysis_text.replace("```json", "").replace("```", "").strip()
+            
+            return json.loads(analysis_text)
+        except Exception as e2:
+            st.error(f"Error analyzing resume: {str(e2)}")
+            return {}
 
 def generate_career_recommendations(resume_analysis):
     """Generate career recommendations based on resume analysis"""
@@ -101,7 +118,11 @@ def generate_career_recommendations(resume_analysis):
     """
     
     try:
-        response = openai.ChatCompletion.create(
+        # Updated for newer OpenAI library versions
+        from openai import OpenAI
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.5
@@ -112,8 +133,21 @@ def generate_career_recommendations(resume_analysis):
         
         return json.loads(recommendations_text)
     except Exception as e:
-        st.error(f"Error generating career recommendations: {str(e)}")
-        return {}
+        # Fallback to older API style if new one fails
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5
+            )
+            
+            recommendations_text = response.choices[0].message.content.strip()
+            recommendations_text = recommendations_text.replace("```json", "").replace("```", "").strip()
+            
+            return json.loads(recommendations_text)
+        except Exception as e2:
+            st.error(f"Error generating career recommendations: {str(e2)}")
+            return {}
 
 def chatbot_response(user_message, resume_analysis):
     """Generate chatbot response based on user message and resume analysis"""
@@ -137,7 +171,11 @@ def chatbot_response(user_message, resume_analysis):
     """
     
     try:
-        response = openai.ChatCompletion.create(
+        # Updated for newer OpenAI library versions
+        from openai import OpenAI
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": context}],
             temperature=0.7,
@@ -146,7 +184,18 @@ def chatbot_response(user_message, resume_analysis):
         
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"I apologize, but I'm having trouble processing your request right now. Please try again later."
+        # Fallback to older API style if new one fails
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": context}],
+                temperature=0.7,
+                max_tokens=500
+            )
+            
+            return response.choices[0].message.content.strip()
+        except Exception as e2:
+            return f"I apologize, but I'm having trouble processing your request right now. Please try again later."
 
 def run_career_coach():
     """Main function to run the career coach interface"""
