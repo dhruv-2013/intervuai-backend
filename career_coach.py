@@ -60,11 +60,15 @@ def analyze_resume_with_ai(resume_text):
     """
     
     try:
-        # Use the same API style as main.py (older OpenAI API)
-        response = openai.ChatCompletion.create(
+        # Use the same approach as main.py get_answer_evaluation function
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
+            messages=[
+                {"role": "system", "content": "You are an expert resume analyzer providing structured data."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1000,
+            temperature=0.3,
         )
         
         analysis_text = response.choices[0].message.content.strip()
@@ -102,11 +106,15 @@ def generate_career_recommendations(resume_analysis):
     """
     
     try:
-        # Use the same API style as main.py (older OpenAI API)
-        response = openai.ChatCompletion.create(
+        # Use the same approach as main.py get_answer_evaluation function
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.5
+            messages=[
+                {"role": "system", "content": "You are an expert career counselor providing structured recommendations."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1000,
+            temperature=0.5,
         )
         
         recommendations_text = response.choices[0].message.content.strip()
@@ -139,12 +147,15 @@ def chatbot_response(user_message, resume_analysis):
     """
     
     try:
-        # Use the same API style as main.py (older OpenAI API)
-        response = openai.ChatCompletion.create(
+        # Use the same approach as main.py get_answer_evaluation function
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": context}],
+            messages=[
+                {"role": "system", "content": "You are an expert interview coach providing conversational career advice."},
+                {"role": "user", "content": context}
+            ],
+            max_tokens=500,
             temperature=0.7,
-            max_tokens=500
         )
         
         return response.choices[0].message.content.strip()
