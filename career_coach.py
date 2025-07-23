@@ -70,32 +70,26 @@ def extract_text_from_docx(docx_file):
 
 def analyze_resume_with_ai(resume_text):
     """Analyze resume using OpenAI to extract key information"""
-    prompt = f"""
-    Analyze the following resume and extract key information in JSON format:
+    # Truncate resume text if too long to reduce token usage
+    if len(resume_text) > 3000:
+        resume_text = resume_text[:3000] + "..."
     
-    Resume Text:
+    prompt = f"""
+    Extract key info from this resume in JSON format:
+    
     {resume_text}
     
-    Please extract and return a JSON object with the following structure:
+    Return JSON:
     {{
-        "name": "candidate name",
-        "email": "email address", 
-        "phone": "phone number",
-        "current_role": "current job title",
-        "experience_years": "estimated years of experience",
-        "skills": ["list", "of", "technical", "skills"],
-        "education": ["degree", "institution"],
-        "industries": ["list", "of", "industries", "worked", "in"],
-        "job_roles": ["list", "of", "previous", "job", "titles"],
-        "achievements": ["key", "achievements", "and", "accomplishments"],
-        "technologies": ["programming", "languages", "tools", "platforms"],
-        "certifications": ["professional", "certifications"],
-        "recommended_fields": ["suggested", "job", "fields", "based", "on", "experience"],
-        "strengths": ["identified", "strengths", "from", "resume"],
-        "areas_for_improvement": ["potential", "skill", "gaps", "or", "areas", "to", "develop"]
+        "name": "name",
+        "email": "email", 
+        "phone": "phone",
+        "current_role": "job title",
+        "experience_years": "years",
+        "skills": ["skills"],
+        "strengths": ["strengths"],
+        "areas_for_improvement": ["improvements"]
     }}
-    
-    Only return the JSON object, no additional text.
     """
     
     try:
@@ -103,10 +97,9 @@ def analyze_resume_with_ai(resume_text):
         data = {
             "model": "gpt-3.5-turbo",
             "messages": [
-                {"role": "system", "content": "You are an expert resume analyzer providing structured data."},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 1000,
+            "max_tokens": 500,  # Reduced from 1000
             "temperature": 0.3
         }
         
