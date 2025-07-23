@@ -4,8 +4,45 @@ import PyPDF2
 import docx
 from io import BytesIO
 import requests
+import time
 
-def extract_text_from_pdf(pdf_file):
+def make_openai_request(data, max_retries=3):
+    """Make OpenAI API request with retry logic for rate limits"""
+    headers = {
+        "Authorization": f"Bearer {st.secrets['OPENAI_API_KEY']}",
+        "Content-Type": "application/json"
+    }
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 429:
+                # Rate limit hit, wait and retry
+                wait_time = (attempt + 1) * 2  # 2, 4, 6 seconds
+                st.info(f"Rate limit reached. Waiting {wait_time} seconds before retry...")
+                time.sleep(wait_time)
+                continue
+            else:
+                st.error(f"OpenAI API error: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            st.error(f"Request failed: {str(e)}")
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            return None
+    
+    st.error("Max retries reached. Please try again in a few minutes.")
+    return None
     """Extract text from PDF file"""
     try:
         pdf_reader = PyPDF2.PdfReader(pdf_file)
@@ -60,12 +97,7 @@ def analyze_resume_with_ai(resume_text):
     """
     
     try:
-        # Use direct HTTP request to avoid OpenAI library version conflicts
-        headers = {
-            "Authorization": f"Bearer {st.secrets['OPENAI_API_KEY']}",
-            "Content-Type": "application/json"
-        }
-        
+        # Use helper function with retry logic
         data = {
             "model": "gpt-3.5-turbo",
             "messages": [
@@ -76,20 +108,13 @@ def analyze_resume_with_ai(resume_text):
             "temperature": 0.3
         }
         
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=30
-        )
+        result = make_openai_request(data)
         
-        if response.status_code == 200:
-            result = response.json()
+        if result:
             analysis_text = result["choices"][0]["message"]["content"].strip()
             analysis_text = analysis_text.replace("```json", "").replace("```", "").strip()
             return json.loads(analysis_text)
         else:
-            st.error(f"OpenAI API error: {response.status_code}")
             return {}
             
     except Exception as e:
@@ -123,12 +148,7 @@ def generate_career_recommendations(resume_analysis):
     """
     
     try:
-        # Use direct HTTP request to avoid OpenAI library version conflicts
-        headers = {
-            "Authorization": f"Bearer {st.secrets['OPENAI_API_KEY']}",
-            "Content-Type": "application/json"
-        }
-        
+        # Use helper function with retry logic
         data = {
             "model": "gpt-3.5-turbo",
             "messages": [
@@ -139,20 +159,13 @@ def generate_career_recommendations(resume_analysis):
             "temperature": 0.5
         }
         
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=30
-        )
+        result = make_openai_request(data)
         
-        if response.status_code == 200:
-            result = response.json()
+        if result:
             recommendations_text = result["choices"][0]["message"]["content"].strip()
             recommendations_text = recommendations_text.replace("```json", "").replace("```", "").strip()
             return json.loads(recommendations_text)
         else:
-            st.error(f"OpenAI API error: {response.status_code}")
             return {}
             
     except Exception as e:
@@ -181,12 +194,7 @@ def chatbot_response(user_message, resume_analysis):
     """
     
     try:
-        # Use direct HTTP request to avoid OpenAI library version conflicts
-        headers = {
-            "Authorization": f"Bearer {st.secrets['OPENAI_API_KEY']}",
-            "Content-Type": "application/json"
-        }
-        
+        # Use helper function with retry logic
         data = {
             "model": "gpt-3.5-turbo",
             "messages": [
@@ -197,18 +205,12 @@ def chatbot_response(user_message, resume_analysis):
             "temperature": 0.7
         }
         
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=data,
-            timeout=30
-        )
+        result = make_openai_request(data)
         
-        if response.status_code == 200:
-            result = response.json()
+        if result:
             return result["choices"][0]["message"]["content"].strip()
         else:
-            return f"I apologize, but I'm having trouble processing your request right now. API error: {response.status_code}"
+            return "I apologize, but I'm having trouble processing your request right now. Please try again in a few minutes."
             
     except Exception as e:
         return f"I apologize, but I'm having trouble processing your request right now. Please try again later."
