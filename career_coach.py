@@ -60,9 +60,9 @@ def analyze_resume_with_ai(resume_text):
     """
     
     try:
-        # Use the same approach as main.py get_answer_evaluation function
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
+        # Use the exact same approach as answer_evaluation.py
+        response = openai.ChatCompletion.create(
+            model="gpt-4-turbo",
             messages=[
                 {"role": "system", "content": "You are an expert resume analyzer providing structured data."},
                 {"role": "user", "content": prompt}
@@ -71,13 +71,30 @@ def analyze_resume_with_ai(resume_text):
             temperature=0.3,
         )
         
-        analysis_text = response.choices[0].message.content.strip()
-        analysis_text = analysis_text.replace("```json", "").replace("```", "").strip()
+        # Parse the JSON response the same way as answer_evaluation.py
+        evaluation_data = json.loads(response["choices"][0]["message"]["content"])
         
-        return json.loads(analysis_text)
+        return evaluation_data
     except Exception as e:
         st.error(f"Error analyzing resume: {str(e)}")
-        return {}
+        # Return a basic structure if there's an error (same pattern as answer_evaluation.py)
+        return {
+            "name": "Error extracting name",
+            "email": "Error extracting email",
+            "phone": "Error extracting phone",
+            "current_role": "Error extracting role",
+            "experience_years": "Unknown",
+            "skills": ["Unable to extract skills due to error"],
+            "education": ["Unable to extract education due to error"],
+            "industries": ["Unable to extract industries due to error"],
+            "job_roles": ["Unable to extract job roles due to error"],
+            "achievements": ["Unable to extract achievements due to error"],
+            "technologies": ["Unable to extract technologies due to error"],
+            "certifications": ["Unable to extract certifications due to error"],
+            "recommended_fields": ["General"],
+            "strengths": ["Unable to analyze strengths due to error"],
+            "areas_for_improvement": ["Unable to analyze areas for improvement due to error"]
+        }
 
 def generate_career_recommendations(resume_analysis):
     """Generate career recommendations based on resume analysis"""
@@ -106,9 +123,9 @@ def generate_career_recommendations(resume_analysis):
     """
     
     try:
-        # Use the same approach as main.py get_answer_evaluation function
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
+        # Use the exact same approach as answer_evaluation.py
+        response = openai.ChatCompletion.create(
+            model="gpt-4-turbo",
             messages=[
                 {"role": "system", "content": "You are an expert career counselor providing structured recommendations."},
                 {"role": "user", "content": prompt}
@@ -117,10 +134,10 @@ def generate_career_recommendations(resume_analysis):
             temperature=0.5,
         )
         
-        recommendations_text = response.choices[0].message.content.strip()
-        recommendations_text = recommendations_text.replace("```json", "").replace("```", "").strip()
+        # Parse the JSON response the same way as answer_evaluation.py
+        recommendations_data = json.loads(response["choices"][0]["message"]["content"])
         
-        return json.loads(recommendations_text)
+        return recommendations_data
     except Exception as e:
         st.error(f"Error generating career recommendations: {str(e)}")
         return {}
@@ -147,9 +164,9 @@ def chatbot_response(user_message, resume_analysis):
     """
     
     try:
-        # Use the same approach as main.py get_answer_evaluation function
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
+        # Use the exact same approach as answer_evaluation.py
+        response = openai.ChatCompletion.create(
+            model="gpt-4-turbo",
             messages=[
                 {"role": "system", "content": "You are an expert interview coach providing conversational career advice."},
                 {"role": "user", "content": context}
@@ -158,7 +175,7 @@ def chatbot_response(user_message, resume_analysis):
             temperature=0.7,
         )
         
-        return response.choices[0].message.content.strip()
+        return response["choices"][0]["message"]["content"].strip()
     except Exception as e:
         return f"I apologize, but I'm having trouble processing your request right now. Please try again later."
 
