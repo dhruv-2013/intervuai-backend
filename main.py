@@ -655,16 +655,7 @@ JOB_FIELDS = {
 COMMON_QUESTIONS = {
     "Background": [
         "Tell me more about yourself and why you're interested in this field.",
-        "What interests you most about this role and our company?",
-        "Walk me through your career journey and key achievements.",
-        "What are your long-term career goals?",
-        "How did you become interested in this field?",
-        "What do you consider your greatest professional accomplishment?",
-        "Tell me about a challenge that shaped your career direction.",
-        "What motivates you in your work?",
-        "How do you stay current with industry trends and developments?",
-        "What unique perspective or experience do you bring to this role?"
-    ]
+        ]
 }
 
 def generate_questions(job_field, num_questions):
