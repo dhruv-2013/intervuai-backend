@@ -72,8 +72,8 @@ def extract_text_from_docx(docx_file):
 def analyze_resume_with_ai(resume_text):
     """Analyze resume using OpenAI to extract key information"""
     # Truncate resume text if too long to reduce token usage
-    if len(resume_text) > 1500:
-        resume_text = resume_text[:1500] + "..."
+    if len(resume_text) > 3000:
+        resume_text = resume_text[:3000] + "..."
     
     prompt = f"""
     Extract key info from this resume in JSON format:
@@ -151,7 +151,7 @@ def generate_career_recommendations(resume_analysis):
                 {"role": "system", "content": "You are an expert career counselor providing structured recommendations."},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 500,
+            "max_tokens": 1000,
             "temperature": 0.5
         }
         

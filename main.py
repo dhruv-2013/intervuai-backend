@@ -674,7 +674,7 @@ def generate_questions(job_field, num_questions):
     all_categories = ["Background", "Technical", "Behavioral", "Role-specific"]
     
     # Define the question order sequence
-    category_order = []
+    category_order = ["Background", "Technical", "Role-specific", "Behavioral"]
     
     # Add all categories that exist in the job field
     for category in all_categories:
