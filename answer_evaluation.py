@@ -158,11 +158,11 @@ def get_answer_evaluation(question, answer, job_field):
             "job_field": job_field,
             "timestamp": datetime.now().isoformat(),
             "scores": {
-                "content": 5,
-                "clarity": 5,
-                "technical_accuracy": 5,
-                "confidence": 5,
-                "overall": 5
+                "content": 3,
+                "clarity": 3,
+                "technical_accuracy": 4,
+                "confidence": 4,
+                "overall": 3
             },
             "feedback": {
                 "strengths": ["Unable to analyze strengths due to error"],
@@ -170,7 +170,7 @@ def get_answer_evaluation(question, answer, job_field):
                 "missing_elements": ["Unable to analyze missing elements due to error"]
             },
             "skills_demonstrated": ["Technical knowledge", "Communication"],
-            "skill_levels": {"Technical knowledge": 70, "Communication": 70},
+            "skill_levels": {"Technical knowledge": 50, "Communication": 50},
             "improved_answer": "Unable to generate improved answer due to error."
         }
 
